@@ -1,9 +1,13 @@
 /* 
  * File:   main.c
- * Author: vaps
+ * Author: Humbedooh
  *
- * Created on 4. januar 2012, 23:30
+ * Created on 4. january 2012, 23:30
  */
+#define LINUX 2
+#define _REENTRANT
+#define _GNU_SOURCE
+#define _LARGEFILE64_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
