@@ -181,10 +181,6 @@ static int lua_getEnv(lua_State *L) {
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         for (i = 0; i < fields->nelts; i++) {
-
-            /*
-             * ap_rprintf(thread->r, "--%s: %s--<br/>\n", e[i].key, e[i].val);
-             */
             lua_pushstring(thread->state, e[i].key);
             lua_pushstring(thread->state, e[i].val);
             lua_rawset(L, -3);
@@ -213,6 +209,13 @@ static int lua_getEnv(lua_State *L) {
         
         lua_pushstring(thread->state, "Remote-Address");
         lua_pushstring(thread->state, thread->r->connection->remote_ip);
+        lua_rawset(L, -3);
+        
+        lua_pushstring(thread->state, "LuaThread");
+        lua_pushfstring(thread->state, "%p", thread);
+        lua_rawset(L, -3);
+        lua_pushstring(thread->state, "LuaState");
+        lua_pushfstring(thread->state, "%p", thread->state);
         lua_rawset(L, -3);
         return (1);
     }
@@ -355,8 +358,8 @@ static int lua_parse_post(lua_State *L) {
             lua_rawset(L, -3);
 
             /*
-             * free(key);
-             * * free(val);
+             free((char*) key);
+             free((char*) val);
              */
         }
 
@@ -392,9 +395,9 @@ static int lua_parse_get(lua_State *L) {
             lua_rawset(L, -3);
 
             /*
-             * free(key);
-             * * free(val);
-             */
+            free((char*) key);
+            free((char*) val);
+            */
         }
 
         return (1);
@@ -628,11 +631,11 @@ int lua_parse_file(lua_thread *thread, char *input) {
 
             X = matchStart[0];
             matchStart[0] = 0;
-            snprintf(test, matchStart - input + 13, "echo([=[%s]=]);", input + at);
+            snprintf(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
             matchStart[0] = X;
 
             
-           // ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
+    //        ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
              
             lua_add_code(&output, test);
             free(test);
@@ -646,22 +649,23 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
                 strncpy(test, matchStart + 2, matchEnd - matchStart - 2);
+                test[matchEnd - matchStart-2] = 0;
                 at = matchEnd - input + 2;
 
                
-            //    ap_rprintf(thread->r, "Adding code: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
+  //              ap_rprintf(thread->r, "Adding code: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
                  
                 lua_add_code(&output, test);
                 free(test);
             }
         } else {
-            if (strlen(input)) {
+            if (inputSize > at) {
 
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
                 char    *test = (char *) calloc(1, strlen(input) - at + 20);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-                snprintf(test, strlen(input) - at + 13, "echo([=[%s]=]);", input + at);
+                snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
                 at = inputSize;
                 lua_add_code(&output, test);
                 free(test);
@@ -720,7 +724,7 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
             iSize = ftell(input);
             fseek(input, 0, SEEK_SET);
             iSize = iSize ? iSize : 1;
-            iBuffer = (char *) malloc(iSize);
+            iBuffer = (char *) calloc(1,iSize+1);
             fread(iBuffer, iSize, 1, input);
             fclose(input);
             rc = lua_parse_file(thread, iBuffer);
