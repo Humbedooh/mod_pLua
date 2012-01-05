@@ -591,7 +591,7 @@ void lua_add_code(char **buffer, const char *string) {
         /*~~~~~~~~~~~*/
 
         at = strlen(b);
-        b = (char *) realloc(b, at + strlen(string) + 1);
+        b = (char *) realloc(b, at + strlen(string) + 2);
         b[at + strlen(string) + 1] = 0;
         strcpy((char *) (b + at), string);
     }
@@ -628,7 +628,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
 
             X = matchStart[0];
             matchStart[0] = 0;
-            snprintf(test, matchStart - input + 16, "echo([=[ %s ]=]);", input + at);
+            snprintf(test, matchStart - input + 13, "echo([=[%s]=]);", input + at);
             matchStart[0] = X;
 
             
@@ -642,7 +642,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
             if (matchEnd) {
 
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-                char    *test = (char *) calloc(1, matchEnd - matchStart);
+                char    *test = (char *) calloc(1, matchEnd - matchStart+2);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
                 strncpy(test, matchStart + 2, matchEnd - matchStart - 2);
@@ -661,7 +661,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 char    *test = (char *) calloc(1, strlen(input) - at + 20);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-                snprintf(test, strlen(input) - at + 16, "echo([=[ %s ]=]);", input + at);
+                snprintf(test, strlen(input) - at + 13, "echo([=[%s]=]);", input + at);
                 at = inputSize;
                 lua_add_code(&output, test);
                 free(test);
