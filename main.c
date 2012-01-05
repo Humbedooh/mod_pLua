@@ -14,9 +14,11 @@
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
-#define LUA_COMPAT_MODULE   1
+#define LUA_COMPAT_MODULE        1
+#define PLUA_VERSION             4
 static int LUA_STATES  =        50;  /* Keep 50 states open */
 static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
+
 typedef struct
 {
     int         working;
@@ -199,22 +201,26 @@ static int lua_getEnv(lua_State *L) {
         }
 
         // Our own data
-        lua_pushstring(thread->state, "LuaStates");
+        lua_pushstring(thread->state, "Plua-States");
         lua_pushinteger(thread->state, LUA_STATES);
         lua_rawset(L, -3);
         
-        lua_pushstring(thread->state, "LuaRuns");
+        lua_pushstring(thread->state, "Plua-Runs");
         lua_pushinteger(thread->state, LUA_RUNS);
+        lua_rawset(L, -3);
+        
+        lua_pushstring(thread->state, "Plua-Version");
+        lua_pushinteger(thread->state, PLUA_VERSION);
         lua_rawset(L, -3);
         
         lua_pushstring(thread->state, "Remote-Address");
         lua_pushstring(thread->state, thread->r->connection->remote_ip);
         lua_rawset(L, -3);
         
-        lua_pushstring(thread->state, "LuaThread");
+        lua_pushstring(thread->state, "Lua-Thread");
         lua_pushfstring(thread->state, "%p", thread);
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "LuaState");
+        lua_pushstring(thread->state, "Lua-State");
         lua_pushfstring(thread->state, "%p", thread->state);
         lua_rawset(L, -3);
         return (1);
