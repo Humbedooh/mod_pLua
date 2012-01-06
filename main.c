@@ -10,14 +10,23 @@
 #include <apache2/httpd.h>
 #include <apache2/http_protocol.h>
 #include <apache2/http_config.h>
-#include <pthread.h>
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
+#include <pthread.h>
+
 #define LUA_COMPAT_MODULE        1
 #define PLUA_VERSION             4
 static int LUA_STATES  =        50;  /* Keep 50 states open */
 static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
+static int LUA_FILES   =       200; /* Number of files to keep cached */
+
+typedef struct
+    {
+        char    filename[257];
+        time_t  modified;
+        int     refindex;
+    } plua_files;
 
 typedef struct
 {
@@ -26,12 +35,8 @@ typedef struct
     request_rec *r;
     lua_State   *state;
     int         typeSet;
-    struct
-    {
-        char    filename[512];
-        time_t  modified;
-        int     refindex;
-    } files[100];
+    int         youngest;
+    plua_files* files;
 }
 lua_thread;
 typedef struct
@@ -476,7 +481,7 @@ void lua_init_state(lua_thread *thread, int x) {
     lua_State   *L;
     int         y;
     /*~~~~~~~~~~~*/
-
+    thread->youngest = 0;
     thread->state = luaL_newstate();
     thread->sessions = 0;
     L = (lua_State *) thread->state;
@@ -485,8 +490,8 @@ void lua_init_state(lua_thread *thread, int x) {
     luaL_openlibs(L);
     luaopen_debug(L);
     register_lua_functions(L);
-    for (y = 0; y < 100; y++) {
-        memset(thread->files[y].filename, 0, 512);
+    for (y = 0; y < LUA_FILES; y++) {
+        memset(thread->files[y].filename, 0, 256);
         thread->files[y].modified = 0;
         thread->files[y].refindex = 0;
     }
@@ -574,6 +579,7 @@ static void module_init(void) {
     Lua_states.states = (lua_thread*) calloc(LUA_STATES, sizeof(lua_thread));
     for (x = 0; x < LUA_STATES; x++) {
         if (!Lua_states.states[x].state) {
+            Lua_states.states[x].files = calloc(LUA_FILES, sizeof(plua_files));
             lua_init_state(&Lua_states.states[x], x);
         }
     }
@@ -715,7 +721,7 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
     /*~~~~~~~~~~~~~~~~~~~*/
 
     stat(thread->r->filename, &statbuf);
-    for (x = 0; x < 100; x++) {
+    for (x = 0; x < LUA_FILES; x++) {
         if (!strcmp(thread->files[x].filename, thread->r->filename)) {
             if (statbuf.st_mtim.tv_sec != thread->files[x].modified) {
 
@@ -753,25 +759,34 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
             }
 
             if (!rc) {
+                int foundSlot = 0;
                 x = luaL_ref(thread->state, LUA_REGISTRYINDEX);
 
                 /*
                  * ap_rprintf(thread->r,"Pushed the string onto the registry at index %u<br/>", x);
                  * * Put the compiled file into the files struct
                  */
-                for (y = 0; y < 100; y++) {
+                for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
                         strcpy(thread->files[y].filename, thread->r->filename);
                         thread->files[y].modified = statbuf.st_mtim.tv_sec;
                         thread->files[y].refindex = x;
-
+                        foundSlot = 1;
+                        thread->youngest = y;
                         /*
                          * ap_rprintf(thread->r,"Pushed the into the file list at index %u<br/>", y);
                          */
                         break;
                     }
                 }
-
+                if (!foundSlot) {
+                    // All slots are full, use the oldest slot for the new file
+                    int y = (thread->youngest + 1) % LUA_FILES;
+                    thread->youngest = y;
+                    strcpy(thread->files[y].filename, thread->r->filename);
+                    thread->files[y].modified = statbuf.st_mtim.tv_sec;
+                    thread->files[y].refindex = x;
+                }
                 return (x);
             }
         } else return (-1);
@@ -881,9 +896,16 @@ const char* plua_set_LuaRuns(cmd_parms* cmd, void* cfg, const char* arg) {
     return NULL;
 }
 
+const char* plua_set_LuaFiles(cmd_parms* cmd, void* cfg, const char* arg) {
+    int x = atoi(arg);
+    LUA_FILES = x ? x : 200;
+    return NULL;
+}
+
 static const command_rec my_directives[] = {
   AP_INIT_TAKE1("PluaStates", plua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
   AP_INIT_TAKE1("PluaRuns", plua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
+  AP_INIT_TAKE1("PluaFiles", plua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
   { NULL }
 } ;
 
