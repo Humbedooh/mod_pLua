@@ -16,11 +16,11 @@
 #include <pthread.h>
 
 #define LUA_COMPAT_MODULE        1
-#define PLUA_VERSION             6
+#define PLUA_VERSION             7
 static int LUA_STATES  =        50;  /* Keep 50 states open */
 static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
 static int LUA_FILES   =       200; /* Number of files to keep cached */
-
+static int LUA_USECALL =         0;
 typedef struct
     {
         char    filename[257];
@@ -108,7 +108,7 @@ static int lua_echo(lua_State *L) {
     /*~~~~~~~~~~~~~~~~*/
     const char  *el;
     lua_thread  *thread;
-    int         y;
+    int         y,z;
     /*~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
@@ -117,7 +117,8 @@ static int lua_echo(lua_State *L) {
         /*
          * luaL_checktype(L, 1, LUA_TSTRING);
          */
-        for (y = 1; y < 100; y++) {
+        z = lua_gettop(L);
+        for (y = 1; y < z; y++) {
             el = lua_tostring(L, y);
             if (el) ap_rputs(el, thread->r);
         }
@@ -894,7 +895,10 @@ static int plua_handler(request_rec *r) {
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
             l->typeSet = 0;
-            if (lua_pcall(L, 0, LUA_MULTRET, 0)) {
+            rc = 0;
+            if (LUA_USECALL) lua_call(L, 0, LUA_MULTRET);
+            else rc = lua_pcall(L, 0, LUA_MULTRET, 0);
+            if (rc) {
                 ap_set_content_type(r, "text/html;charset=ascii");
                 ap_rprintf(r, "<h3>Run-time error:</h3><pre>%s</pre>", lua_tostring(L, -1));
             } else {
