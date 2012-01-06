@@ -635,34 +635,47 @@ int lua_parse_file(lua_thread *thread, char *input) {
             char    *test = (char *) calloc(1, matchStart - input + at + 20);
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+            // Add any preceding raw html as an echo
             X = matchStart[0];
             matchStart[0] = 0;
             snprintf(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
             matchStart[0] = X;
-
-            
     //        ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
-             
             lua_add_code(&output, test);
             free(test);
+            
+            // Find the beginning and end of the plua chunk
             at = (matchStart - input) + 2;
             matchEnd = strstr((char *) matchStart + 2, "?>");
             if (!matchEnd) matchEnd = (input + strlen(input));
             if (matchEnd) {
-
-                /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-                char    *test = (char *) calloc(1, matchEnd - matchStart+2);
-                /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-                strncpy(test, matchStart + 2, matchEnd - matchStart - 2);
-                test[matchEnd - matchStart-2] = 0;
-                at = matchEnd - input + 2;
-
-               
-  //              ap_rprintf(thread->r, "Adding code: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
-                 
-                lua_add_code(&output, test);
-                free(test);
+                char    *test = 0;
+                char    *etest = 0;
+                // <?=variable?> check
+                if (matchStart[2] == '=') {
+                    test = (char *) calloc(1, matchEnd - matchStart+2);
+                    etest = (char*) calloc(1, matchEnd - matchStart + 10);
+                    
+                    strncpy(test, matchStart + 3, matchEnd - matchStart - 3);
+                    test[matchEnd - matchStart-3] = 0;
+                    at = matchEnd - input + 2;
+                    sprintf(etest, "echo(%s);", test);
+                //  ap_rprintf(thread->r, "Adding echo-code: <pre>echo(%s)</pre><br/>", ap_escape_html(thread->r->pool, test));
+                    lua_add_code(&output, etest);
+                    free(test);
+                    free(etest);
+                }
+                // <? code ?> check
+                else {
+                
+                    test = (char *) calloc(1, matchEnd - matchStart+2);
+                    strncpy(test, matchStart + 2, matchEnd - matchStart - 2);
+                    test[matchEnd - matchStart-2] = 0;
+                    at = matchEnd - input + 2;
+    //              ap_rprintf(thread->r, "Adding code: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
+                    lua_add_code(&output, test);
+                    free(test);
+                }
             }
         } else {
             if (inputSize > at) {
