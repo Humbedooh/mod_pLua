@@ -435,6 +435,7 @@ static const luaL_reg   File_methods[] = { { "stat", lua_fileinfo }, { "exists",
 static const luaL_reg   Global_methods[] =
 {
     { "echo", lua_echo },
+    { "print", lua_echo },
     { "header", lua_header },
     { "setContentType", lua_setContentType },
     { "getEnv", lua_getEnv },
