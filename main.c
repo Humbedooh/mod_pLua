@@ -16,7 +16,7 @@
 #include <pthread.h>
 
 #define LUA_COMPAT_MODULE        1
-#define PLUA_VERSION             4
+#define PLUA_VERSION             5
 static int LUA_STATES  =        50;  /* Keep 50 states open */
 static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
 static int LUA_FILES   =       200; /* Number of files to keep cached */
@@ -214,6 +214,10 @@ static int lua_getEnv(lua_State *L) {
         lua_pushinteger(thread->state, LUA_RUNS);
         lua_rawset(L, -3);
         
+        lua_pushstring(thread->state, "Plua-Files");
+        lua_pushinteger(thread->state, LUA_FILES);
+        lua_rawset(L, -3);
+        
         lua_pushstring(thread->state, "Plua-Version");
         lua_pushinteger(thread->state, PLUA_VERSION);
         lua_rawset(L, -3);
@@ -228,6 +232,11 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Lua-State");
         lua_pushfstring(thread->state, "%p", thread->state);
         lua_rawset(L, -3);
+        
+        lua_pushstring(thread->state, "Request-Method");
+        lua_pushstring(thread->state, thread->r->method);
+        lua_rawset(L, -3);
+        
         return (1);
     }
 
