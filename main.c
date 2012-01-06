@@ -16,7 +16,7 @@
 #include <pthread.h>
 
 #define LUA_COMPAT_MODULE        1
-#define PLUA_VERSION             5
+#define PLUA_VERSION             6
 static int LUA_STATES  =        50;  /* Keep 50 states open */
 static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
 static int LUA_FILES   =       200; /* Number of files to keep cached */
@@ -350,6 +350,7 @@ static int lua_parse_post(lua_State *L) {
                 *val,
                 *type;
     lua_thread  *thread = 0;
+    size_t x = 0, y = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
@@ -371,8 +372,11 @@ static int lua_parse_post(lua_State *L) {
 
         while (*data && (val = ap_getword(thread->r->pool, &data, '&'))) {
             key = ap_getword(thread->r->pool, &val, '=');
+            y = strlen(val);
+            for (x=0;x<y;x++) { if (val[x] == '+') ((char*) val)[x] = ' '; }
             ap_unescape_url((char *) key);
             ap_unescape_url((char *) val);
+            
             lua_pushstring(thread->state, key);
             lua_pushstring(thread->state, val);
             lua_rawset(L, -3);
@@ -399,6 +403,7 @@ static int lua_parse_get(lua_State *L) {
                 *val,
                 *type;
     lua_thread  *thread = 0;
+    size_t x = 0,y=0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
@@ -408,6 +413,8 @@ static int lua_parse_get(lua_State *L) {
         data = thread->r->args;
         while (*data && (val = ap_getword(thread->r->pool, &data, '&'))) {
             key = ap_getword(thread->r->pool, &val, '=');
+            y = strlen(val);
+            for (x=0;x<y;x++) { if (val[x] == '+') ((char*) val)[x] = ' '; }
             ap_unescape_url((char *) key);
             ap_unescape_url((char *) val);
             lua_pushstring(thread->state, key);
