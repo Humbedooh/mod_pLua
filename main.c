@@ -114,7 +114,6 @@ static int lua_echo(lua_State *L) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
-
         /*
          * luaL_checktype(L, 1, LUA_TSTRING);
          */
@@ -284,6 +283,35 @@ static int lua_fileinfo(lua_State *L)
     return (1);
 }
 
+
+/*
+ =======================================================================================================================
+ =======================================================================================================================
+ */
+static int lua_clock(lua_State *L)
+{
+#if __WIN
+#   define open    _open
+#endif
+
+    /*~~~~~~~~~~~~~~~~~~*/
+    struct timespec t;
+    /*~~~~~~~~~~~~~~~~~~*/
+    
+    lua_settop(L, 0);
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    
+    lua_newtable(L);
+    lua_pushliteral(L, "seconds");
+    lua_pushinteger(L, t.tv_sec);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "nanoseconds");
+    lua_pushinteger(L, t.tv_nsec);
+    lua_rawset(L, -3);
+
+    return (1);
+}
+
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -441,6 +469,7 @@ static const luaL_reg   Global_methods[] =
     { "getEnv", lua_getEnv },
     { "parsePost", lua_parse_post },
     { "parseGet", lua_parse_get },
+    { "clock", lua_clock },
     { 0, 0 }
 };
 
