@@ -1,0 +1,20 @@
+=== Compiling ==
+Run "./configure" to set up the compiler environment.
+Run "make" to compile the file.
+
+== Installing ==
+Run "make install" to copy the file to /usr/lib/apache2/modules.
+
+Add the following information to your apache configuration:
+
+#-------------------------#
+LoadModule plua_module /usr/lib/apache2/modules/mod_plua.so
+
+<FilesMatch "\.plua$">
+	SetHandler plua
+</FilesMatch>
+#-------------------------#
+
+
+
+Enjoy!
