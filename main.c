@@ -14,6 +14,7 @@
 #include <lualib.h>
 #include <lauxlib.h>
 #include <pthread.h>
+#include <time.h>
 
 #define LUA_COMPAT_MODULE        1
 #define PLUA_VERSION             7
@@ -36,6 +37,7 @@ typedef struct
     lua_State   *state;
     int         typeSet;
     int         youngest;
+    struct timespec t;
     plua_files* files;
 }
 lua_thread;
@@ -291,28 +293,59 @@ static int lua_fileinfo(lua_State *L)
  */
 static int lua_clock(lua_State *L)
 {
-#if __WIN
-#   define open    _open
-#endif
+
 
     /*~~~~~~~~~~~~~~~~~~*/
+#ifdef _WIN32
+    clock_t f;
+#else
     struct timespec t;
+#endif
     /*~~~~~~~~~~~~~~~~~~*/
-    
     lua_settop(L, 0);
-    clock_gettime(CLOCK_MONOTONIC, &t);
     
     lua_newtable(L);
+#ifdef _WIN32
+    f = clock();
+    lua_pushliteral(L, "seconds");
+    lua_pushinteger(L, f/CLOCKS_PER_SEC);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "nanoseconds");
+    lua_pushinteger(L, (f % CLOCKS_PER_SEC) * (1000000000/CLOCKS_PER_SEC));
+    lua_rawset(L, -3);
+#else
+    clock_gettime(CLOCK_MONOTONIC, &t);
     lua_pushliteral(L, "seconds");
     lua_pushinteger(L, t.tv_sec);
     lua_rawset(L, -3);
     lua_pushliteral(L, "nanoseconds");
     lua_pushinteger(L, t.tv_nsec);
     lua_rawset(L, -3);
-
+#endif
     return (1);
 }
 
+
+static int lua_compileTime(lua_State *L)
+{
+    lua_thread                  *thread;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
+    thread = (lua_thread *) lua_touserdata(L, -1);
+    lua_settop(L, 0);
+    if (thread) {
+        lua_newtable(L);
+        lua_pushliteral(L, "seconds");
+        lua_pushinteger(L, thread->t.tv_sec);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "nanoseconds");
+        lua_pushinteger(L, thread->t.tv_nsec);
+        lua_rawset(L, -3);
+        return (1);
+    }
+    else return(0);
+}
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -471,6 +504,7 @@ static const luaL_reg   Global_methods[] =
     { "parsePost", lua_parse_post },
     { "parseGet", lua_parse_get },
     { "clock", lua_clock },
+    { "compileTime", lua_compileTime },
     { 0, 0 }
 };
 
@@ -569,7 +603,10 @@ lua_thread *lua_acquire_state(void) {
     }
 
     pthread_mutex_unlock(&Lua_states.mutex);
-    if (found) return (L);
+    if (found) {
+        clock_gettime(CLOCK_MONOTONIC, &L->t);
+        return (L);
+    }
     else {
         sleep(1);
         return (lua_acquire_state());
