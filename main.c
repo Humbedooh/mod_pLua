@@ -6,10 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <apr-1.0/apr.h>
-#include <apache2/httpd.h>
-#include <apache2/http_protocol.h>
-#include <apache2/http_config.h>
+//#include <apr.h>
+#include <httpd.h>
+#include <http_protocol.h>
+#include <http_config.h>
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
@@ -17,7 +17,7 @@
 #include <time.h>
 
 #define LUA_COMPAT_MODULE        1
-#define PLUA_VERSION             7
+#define PLUA_VERSION             8
 static int LUA_STATES  =        50;  /* Keep 50 states open */
 static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
 static int LUA_FILES   =       200; /* Number of files to keep cached */
@@ -48,6 +48,11 @@ typedef struct
 } lua_states;
 static lua_states   Lua_states;
 
+
+
+#ifdef _WIN32
+#define sleep(a) Sleep(a*1000)
+#endif
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -61,7 +66,7 @@ static int lua_fileexists(lua_State *L) {
     luaL_checktype(L, 1, LUA_TSTRING);
     el = lua_tostring(L, 1);
     lua_settop(L, 0);
-#ifdef __WIN32
+#ifdef _WIN32
     if (access(el, 0) == 0) lua_pushboolean(L, 1);
 #else
     if (faccessat(0, el, R_OK, AT_EACCESS) == 0) lua_pushboolean(L, 1);
@@ -182,11 +187,12 @@ static int lua_getEnv(lua_State *L) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
+		apr_table_entry_t   *e = 0;
         lua_newtable(thread->state);
         fields = apr_table_elts(thread->r->headers_in);
 
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-        apr_table_entry_t   *e = (apr_table_entry_t *) fields->elts;
+        e = (apr_table_entry_t *) fields->elts;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         for (i = 0; i < fields->nelts; i++) {
@@ -583,6 +589,9 @@ void lua_init_state(lua_thread *thread, int x) {
     Acquires a Lua state from the global stack
  =======================================================================================================================
  */
+
+
+
 lua_thread *lua_acquire_state(void) {
 
     /*~~~~~~~~~~~~~~~~~~*/
@@ -590,8 +599,9 @@ lua_thread *lua_acquire_state(void) {
     int         found = 0;
     lua_thread  *L = 0;
     /*~~~~~~~~~~~~~~~~~~*/
-
+#ifndef _WIN32
     pthread_mutex_lock(&Lua_states.mutex);
+#endif
     for (x = 0; x < LUA_STATES; x++) {
         if (!Lua_states.states[x].working && Lua_states.states[x].state) {
             Lua_states.states[x].working = 1;
@@ -601,10 +611,18 @@ lua_thread *lua_acquire_state(void) {
             break;
         }
     }
-
+	#ifndef _WIN32
     pthread_mutex_unlock(&Lua_states.mutex);
+	#endif
     if (found) {
+#ifdef _WIN32
+		clock_t t;
+		t = clock();
+		L->t.tv_sec = (t/CLOCKS_PER_SEC);
+		L->t.tv_nsec = (t % CLOCKS_PER_SEC) * (1000000000/CLOCKS_PER_SEC);
+#else
         clock_gettime(CLOCK_MONOTONIC, &L->t);
+#endif
         return (L);
     }
     else {
@@ -626,7 +644,9 @@ void lua_release_state(lua_State *X) {
     /*~~*/
 
     lua_gc(X, LUA_GCSTEP, 1);
+	#ifndef _WIN32
     pthread_mutex_lock(&Lua_states.mutex);
+#endif
     for (x = 0; x < LUA_STATES; x++) {
         if (Lua_states.states[x].state == X) {
             Lua_states.states[x].working = 0;
@@ -639,8 +659,9 @@ void lua_release_state(lua_State *X) {
             break;
         }
     }
-
+	#ifndef _WIN32
     pthread_mutex_unlock(&Lua_states.mutex);
+#endif
 }
 
 /*$2
@@ -658,8 +679,9 @@ static void module_init(void) {
     /*~~*/
     int x;
     /*~~*/
-
+	#ifndef _WIN32
     pthread_mutex_init(&Lua_states.mutex, 0);
+#endif
     Lua_states.states = (lua_thread*) calloc(LUA_STATES, sizeof(lua_thread));
     for (x = 0; x < LUA_STATES; x++) {
         if (!Lua_states.states[x].state) {
@@ -728,7 +750,11 @@ int lua_parse_file(lua_thread *thread, char *input) {
             // Add any preceding raw html as an echo
             X = matchStart[0];
             matchStart[0] = 0;
+#ifdef _WIN32
+			_snprintf_c(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
+#else
             snprintf(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
+#endif
             matchStart[0] = X;
     //        ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
             lua_add_code(&output, test);
@@ -773,8 +799,11 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
                 char    *test = (char *) calloc(1, strlen(input) - at + 20);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-                snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
+				#ifdef _WIN32
+                _snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
+#else
+				snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
+#endif
                 at = inputSize;
                 lua_add_code(&output, test);
                 free(test);
@@ -807,7 +836,7 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
     stat(thread->r->filename, &statbuf);
     for (x = 0; x < LUA_FILES; x++) {
         if (!strcmp(thread->files[x].filename, thread->r->filename)) {
-            if (statbuf.st_mtim.tv_sec != thread->files[x].modified) {
+            if (statbuf.st_mtime != thread->files[x].modified) {
 
                 /*
                  * ap_rprintf(thread->r,"Deleted out-of-date compiled version at index %u", x);
@@ -853,7 +882,7 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                 for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
                         strcpy(thread->files[y].filename, thread->r->filename);
-                        thread->files[y].modified = statbuf.st_mtim.tv_sec;
+                        thread->files[y].modified = statbuf.st_mtime;
                         thread->files[y].refindex = x;
                         foundSlot = 1;
                         thread->youngest = y;
@@ -868,13 +897,14 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                     int y = (thread->youngest + 1) % LUA_FILES;
                     thread->youngest = y;
                     strcpy(thread->files[y].filename, thread->r->filename);
-                    thread->files[y].modified = statbuf.st_mtim.tv_sec;
+                    thread->files[y].modified = statbuf.st_mtime;
                     thread->files[y].refindex = x;
                 }
                 return (x);
             }
         } else return (-1);
     }
+	return -1;
 }
 
 /*
@@ -891,8 +921,7 @@ static int plua_handler(request_rec *r) {
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
     if (stat(r->filename, &statbuf) == -1) exists = 0;
-    else if S_ISDIR(statbuf.st_mode)
-    exists = 0;
+    else if (statbuf.st_mode & 0x00400000)  exists = 0;
     if (!exists) {
         ap_set_content_type(r, "text/html;charset=ascii");
         ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
