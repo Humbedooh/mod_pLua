@@ -7,9 +7,15 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 //#include <apr.h>
+#ifdef _WIN32
 #include <httpd.h>
 #include <http_protocol.h>
 #include <http_config.h>
+#else
+#include <apache2/httpd.h>
+#include <apache2/http_protocol.h>
+#include <apache2/http_config.h>
+#endif
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
