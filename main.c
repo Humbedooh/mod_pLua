@@ -23,7 +23,7 @@
 #include <time.h>
 
 #define LUA_COMPAT_MODULE        1
-#define PLUA_VERSION             8
+#define PLUA_VERSION             9
 static int LUA_STATES  =        50;  /* Keep 50 states open */
 static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
 static int LUA_FILES   =       200; /* Number of files to keep cached */
@@ -42,6 +42,7 @@ typedef struct
     request_rec *r;
     lua_State   *state;
     int         typeSet;
+	int			returnCode;
     int         youngest;
     struct timespec t;
     plua_files* files;
@@ -102,6 +103,7 @@ static int lua_header(lua_State *L) {
         value = lua_tostring(L, 2);
         lua_settop(L, 0);
         apr_table_set(thread->r->headers_out, key, value);
+		if ( !strcmp(key, "Location") ) thread->returnCode = HTTP_MOVED_TEMPORARILY;
     } else {
 
         /*
@@ -173,6 +175,28 @@ static int lua_setContentType(lua_State *L) {
          */
     }
 
+    return (0);
+}
+
+
+/*
+ =======================================================================================================================
+ =======================================================================================================================
+ */
+static int lua_setReturnCode(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~*/
+    int  rc;
+    lua_thread  *thread;
+    /*~~~~~~~~~~~~~~~~*/
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
+    thread = (lua_thread *) lua_touserdata(L, -1);
+    if (thread) {
+        rc = luaL_optint(L, 1, 0);
+        lua_settop(L, 0);
+        thread->returnCode = rc;
+    }
     return (0);
 }
 
@@ -474,8 +498,7 @@ static int lua_parse_get(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~*/
     const char  *data;
     const char  *key,
-                *val,
-                *type;
+                *val;
     lua_thread  *thread = 0;
     size_t x = 0,y=0;
     /*~~~~~~~~~~~~~~~~~~~~*/
@@ -517,6 +540,7 @@ static const luaL_reg   Global_methods[] =
     { "parseGet", lua_parse_get },
     { "clock", lua_clock },
     { "compileTime", lua_compileTime },
+	{ "setReturnCode", lua_setReturnCode },
     { 0, 0 }
 };
 
@@ -945,6 +969,7 @@ static int plua_handler(request_rec *r) {
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         l->r = r;
+		l->returnCode = OK;
         lua_pushlightuserdata(L, l);
         x = luaL_ref(L, LUA_REGISTRYINDEX);
         rc = lua_compile_file(l, r->filename);
@@ -957,6 +982,7 @@ static int plua_handler(request_rec *r) {
             err = err ? err : "(nil)";
             ap_set_content_type(r, "text/html;charset=ascii");
             ap_rprintf(r, "<h3>Compiler error in %s:</h3><pre>%s</pre>", r->filename, err);
+			rc = OK;
         } else {
 
             /*$2
@@ -967,14 +993,17 @@ static int plua_handler(request_rec *r) {
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
             l->typeSet = 0;
+			
             rc = 0;
             if (LUA_USECALL) lua_call(L, 0, LUA_MULTRET);
             else rc = lua_pcall(L, 0, LUA_MULTRET, 0);
             if (rc) {
                 ap_set_content_type(r, "text/html;charset=ascii");
                 ap_rprintf(r, "<h3>Run-time error:</h3><pre>%s</pre>", lua_tostring(L, -1));
+				rc = OK;
             } else {
                 if (l->typeSet == 0) ap_set_content_type(r, "text/html;charset=ascii");
+				rc = l->returnCode;
 
                 /*
                  * ap_rprintf(r, "<b>Compiled and ran fine from index %u</b>", rc);
@@ -985,6 +1014,7 @@ static int plua_handler(request_rec *r) {
         /* Cleanup */
         luaL_unref(L, LUA_REGISTRYINDEX, x);
         lua_release_state(L);
+		return rc;
 
         /*
          * lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
