@@ -23,7 +23,7 @@
 #include <time.h>
 
 #define LUA_COMPAT_MODULE        1
-#define PLUA_VERSION             9
+#define PLUA_VERSION             10
 static int LUA_STATES  =        50;  /* Keep 50 states open */
 static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
 static int LUA_FILES   =       200; /* Number of files to keep cached */
@@ -207,8 +207,6 @@ static int lua_setReturnCode(lua_State *L) {
 static int lua_getEnv(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-    const char                  *el;
-    const char                  *value;
     lua_thread                  *thread;
     const apr_array_header_t    *fields;
     int                         i;
@@ -399,11 +397,11 @@ static int util_read(request_rec *r, const char **rbuf) {
     if (ap_should_client_block(r)) {
 
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-        char    argsbuffer[HUGE_STRING_LEN];
-        int     rsize,
-                len_read,
-                rpos = 0;
-        long    length = r->remaining;
+        char      argsbuffer[HUGE_STRING_LEN];
+        int       rsize,
+                  len_read,
+                  rpos = 0;
+        apr_off_t length = r->remaining;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         *rbuf = apr_pcalloc(r->pool, length + 1);
@@ -435,7 +433,7 @@ static int util_read(request_rec *r, const char **rbuf) {
 }
 
 #define DEFAULT_ENCTYPE "application/x-www-form-urlencoded"
-
+#define MAX_VARS 500
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -447,10 +445,19 @@ static int lua_parse_post(lua_State *L) {
     const char  *key,
                 *val,
                 *type;
+	struct _data {
+		const char* key;
+		int size;
+		const char* values[100];
+	} form[MAX_VARS];
+	int i = 0,z = 0;
     lua_thread  *thread = 0;
     size_t x = 0, y = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
-
+	for (i = 0; i < MAX_VARS; i++) {
+		form[i].key = 0;
+		form[i].size = 0;
+	}
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
@@ -467,23 +474,42 @@ static int lua_parse_post(lua_State *L) {
         if (util_read(thread->r, &data) != OK) {
             return (0);
         }
-
+		i = 0;
         while (*data && (val = ap_getword(thread->r->pool, &data, '&'))) {
+			i++;
+			if (i == MAX_VARS) break;
             key = ap_getword(thread->r->pool, &val, '=');
             y = strlen(val);
             for (x=0;x<y;x++) { if (val[x] == '+') ((char*) val)[x] = ' '; }
             ap_unescape_url((char *) key);
             ap_unescape_url((char *) val);
-            
-            lua_pushstring(thread->state, key);
-            lua_pushstring(thread->state, val);
-            lua_rawset(L, -3);
-
-            /*
-             free((char*) key);
-             free((char*) val);
-             */
+			for (z = 0; z < MAX_VARS;z++) {
+				if (form[z].key == 0 || !strcmp(form[z].key, key)) {
+					form[z].key = key;
+					form[z].values[form[z].size++] = val;
+					break;
+				}
+			}
         }
+		for (z = 0; z < MAX_VARS; z++) {
+			if (form[z].key) {
+				if (form[z].size == 1) {
+					lua_pushstring(thread->state, form[z].key);
+					lua_pushstring(thread->state, form[z].values[0]);
+					lua_rawset(thread->state, -3);
+				}
+				else {
+					lua_pushstring(thread->state, form[z].key);
+					lua_newtable(thread->state);
+					for (i = 0; i < form[z].size; i++) {
+						lua_pushinteger(thread->state, i+1);
+						lua_pushstring(thread->state, form[z].values[i]);
+						lua_rawset(thread->state, -3);
+					}
+					lua_rawset(thread->state, -3);
+				}
+			}
+		}
 
         return (1);
     } else return (0);
@@ -501,8 +527,17 @@ static int lua_parse_get(lua_State *L) {
                 *val;
     lua_thread  *thread = 0;
     size_t x = 0,y=0;
+	struct _data {
+		const char* key;
+		int size;
+		const char* values[100];
+	} form[MAX_VARS];
+	int i = 0,z = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
-
+	for (i = 0; i < MAX_VARS; i++) {
+		form[i].key = 0;
+		form[i].size = 0;
+	}
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
@@ -514,15 +549,33 @@ static int lua_parse_get(lua_State *L) {
             for (x=0;x<y;x++) { if (val[x] == '+') ((char*) val)[x] = ' '; }
             ap_unescape_url((char *) key);
             ap_unescape_url((char *) val);
-            lua_pushstring(thread->state, key);
-            lua_pushstring(thread->state, val);
-            lua_rawset(L, -3);
-
-            /*
-            free((char*) key);
-            free((char*) val);
-            */
+            for (z = 0; z < MAX_VARS;z++) {
+				if (form[z].key == 0 || !strcmp(form[z].key, key)) {
+					form[z].key = key;
+					form[z].values[form[z].size++] = val;
+					break;
+				}
+			}
         }
+		for (z = 0; z < MAX_VARS; z++) {
+			if (form[z].key) {
+				if (form[z].size == 1) {
+					lua_pushstring(thread->state, form[z].key);
+					lua_pushstring(thread->state, form[z].values[0]);
+					lua_rawset(thread->state, -3);
+				}
+				else {
+					lua_pushstring(thread->state, form[z].key);
+					lua_newtable(thread->state);
+					for (i = 0; i < form[z].size; i++) {
+						lua_pushinteger(thread->state, i+1);
+						lua_pushstring(thread->state, form[z].values[i]);
+						lua_rawset(thread->state, -3);
+					}
+					lua_rawset(thread->state, -3);
+				}
+			}
+		}
 
         return (1);
     } else return (0);
