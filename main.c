@@ -6,60 +6,56 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-//#include <apr.h>
+
+/* include <apr.h> */
 #ifdef _WIN32
-#include <httpd.h>
-#include <http_protocol.h>
-#include <http_config.h>
+#   include <httpd.h>
+#   include <http_protocol.h>
+#   include <http_config.h>
 #else
-#include <apache2/httpd.h>
-#include <apache2/http_protocol.h>
-#include <apache2/http_config.h>
+#   include <apache2/httpd.h>
+#   include <apache2/http_protocol.h>
+#   include <apache2/http_config.h>
 #endif
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
 #include <pthread.h>
 #include <time.h>
-
-#define LUA_COMPAT_MODULE        1
-#define PLUA_VERSION             10
-static int LUA_STATES  =        50;  /* Keep 50 states open */
-static int LUA_RUNS    =       500; /* Restart a state after 500 sessions */
-static int LUA_FILES   =       200; /* Number of files to keep cached */
-static int LUA_USECALL =         0;
-typedef struct
-    {
-        char    filename[257];
-        time_t  modified;
-        int     refindex;
-    } plua_files;
-
+#define LUA_COMPAT_MODULE   1
+#define PLUA_VERSION        11
+static int  LUA_STATES = 50;    /* Keep 50 states open */
+static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
+static int  LUA_FILES = 200;    /* Number of files to keep cached */
+static int  LUA_USECALL = 0;
 typedef struct
 {
-    int         working;
-    int         sessions;
-    request_rec *r;
-    lua_State   *state;
-    int         typeSet;
-	int			returnCode;
-    int         youngest;
+    char    filename[257];
+    time_t  modified;
+    int     refindex;
+} plua_files;
+typedef struct
+{
+    int             working;
+    int             sessions;
+    request_rec     *r;
+    lua_State       *state;
+    int             typeSet;
+    int             returnCode;
+    int             youngest;
     struct timespec t;
-    plua_files* files;
-}
-lua_thread;
+    plua_files      *files;
+} lua_thread;
 typedef struct
 {
-    lua_thread*      states;
+    lua_thread      *states;
     pthread_mutex_t mutex;
 } lua_states;
 static lua_states   Lua_states;
-
-
-
 #ifdef _WIN32
-#define sleep(a) Sleep(a*1000)
+#   define sleep(a)    Sleep(a * 1000)
 #endif
+
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -103,7 +99,7 @@ static int lua_header(lua_State *L) {
         value = lua_tostring(L, 2);
         lua_settop(L, 0);
         apr_table_set(thread->r->headers_out, key, value);
-		if ( !strcmp(key, "Location") ) thread->returnCode = HTTP_MOVED_TEMPORARILY;
+        if (!strcmp(key, "Location")) thread->returnCode = HTTP_MOVED_TEMPORARILY;
     } else {
 
         /*
@@ -123,12 +119,14 @@ static int lua_echo(lua_State *L) {
     /*~~~~~~~~~~~~~~~~*/
     const char  *el;
     lua_thread  *thread;
-    int         y,z;
+    int         y,
+                z;
     /*~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
+
         /*
          * luaL_checktype(L, 1, LUA_TSTRING);
          */
@@ -178,7 +176,6 @@ static int lua_setContentType(lua_State *L) {
     return (0);
 }
 
-
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -186,7 +183,7 @@ static int lua_setContentType(lua_State *L) {
 static int lua_setReturnCode(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~*/
-    int  rc;
+    int         rc;
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
 
@@ -197,6 +194,7 @@ static int lua_setReturnCode(lua_State *L) {
         lua_settop(L, 0);
         thread->returnCode = rc;
     }
+
     return (0);
 }
 
@@ -215,14 +213,14 @@ static int lua_getEnv(lua_State *L) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
-		apr_table_entry_t   *e = 0;
+
+        /*~~~~~~~~~~~~~~~~~~~~~~~*/
+        apr_table_entry_t   *e = 0;
+        /*~~~~~~~~~~~~~~~~~~~~~~~*/
+
         lua_newtable(thread->state);
         fields = apr_table_elts(thread->r->headers_in);
-
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         e = (apr_table_entry_t *) fields->elts;
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
         for (i = 0; i < fields->nelts; i++) {
             lua_pushstring(thread->state, e[i].key);
             lua_pushstring(thread->state, e[i].val);
@@ -241,38 +239,31 @@ static int lua_getEnv(lua_State *L) {
             lua_rawset(L, -3);
         }
 
-        // Our own data
+        /* Our own data */
         lua_pushstring(thread->state, "Plua-States");
         lua_pushinteger(thread->state, LUA_STATES);
         lua_rawset(L, -3);
-        
         lua_pushstring(thread->state, "Plua-Runs");
         lua_pushinteger(thread->state, LUA_RUNS);
         lua_rawset(L, -3);
-        
         lua_pushstring(thread->state, "Plua-Files");
         lua_pushinteger(thread->state, LUA_FILES);
         lua_rawset(L, -3);
-        
         lua_pushstring(thread->state, "Plua-Version");
         lua_pushinteger(thread->state, PLUA_VERSION);
         lua_rawset(L, -3);
-        
         lua_pushstring(thread->state, "Remote-Address");
         lua_pushstring(thread->state, thread->r->connection->remote_ip);
         lua_rawset(L, -3);
-        
         lua_pushstring(thread->state, "Lua-Thread");
         lua_pushfstring(thread->state, "%p", thread);
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Lua-State");
         lua_pushfstring(thread->state, "%p", thread->state);
         lua_rawset(L, -3);
-        
         lua_pushstring(thread->state, "Request-Method");
         lua_pushstring(thread->state, thread->r->method);
         lua_rawset(L, -3);
-        
         return (1);
     }
 
@@ -320,32 +311,29 @@ static int lua_fileinfo(lua_State *L)
     return (1);
 }
 
-
 /*
  =======================================================================================================================
  =======================================================================================================================
  */
 static int lua_clock(lua_State *L)
 {
-
-
-    /*~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~*/
 #ifdef _WIN32
-    clock_t f;
+    clock_t         f;
 #else
     struct timespec t;
 #endif
-    /*~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~*/
+
     lua_settop(L, 0);
-    
     lua_newtable(L);
 #ifdef _WIN32
     f = clock();
     lua_pushliteral(L, "seconds");
-    lua_pushinteger(L, f/CLOCKS_PER_SEC);
+    lua_pushinteger(L, f / CLOCKS_PER_SEC);
     lua_rawset(L, -3);
     lua_pushliteral(L, "nanoseconds");
-    lua_pushinteger(L, (f % CLOCKS_PER_SEC) * (1000000000/CLOCKS_PER_SEC));
+    lua_pushinteger(L, (f % CLOCKS_PER_SEC) * (1000000000 / CLOCKS_PER_SEC));
     lua_rawset(L, -3);
 #else
     clock_gettime(CLOCK_MONOTONIC, &t);
@@ -359,11 +347,15 @@ static int lua_clock(lua_State *L)
     return (1);
 }
 
+/*
+ =======================================================================================================================
+ =======================================================================================================================
+ */
+static int lua_compileTime(lua_State *L) {
 
-static int lua_compileTime(lua_State *L)
-{
-    lua_thread                  *thread;
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~*/
+    lua_thread  *thread;
+    /*~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
@@ -377,14 +369,14 @@ static int lua_compileTime(lua_State *L)
         lua_pushinteger(L, thread->t.tv_nsec);
         lua_rawset(L, -3);
         return (1);
-    }
-    else return(0);
+    } else return (0);
 }
+
 /*
  =======================================================================================================================
  =======================================================================================================================
  */
-static int util_read(request_rec *r, const char **rbuf) {
+static int util_read(request_rec *r, const char **rbuf, apr_off_t* size) {
 
     /*~~~~~~~~*/
     int rc = OK;
@@ -396,15 +388,17 @@ static int util_read(request_rec *r, const char **rbuf) {
 
     if (ap_should_client_block(r)) {
 
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-        char      argsbuffer[HUGE_STRING_LEN];
-        int       rsize,
-                  len_read,
-                  rpos = 0;
-        apr_off_t length = r->remaining;
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        char        argsbuffer[HUGE_STRING_LEN];
+        int         rsize,
+                    len_read,
+                    rpos = 0;
+        apr_off_t   length = r->remaining;
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         *rbuf = apr_pcalloc(r->pool, length + 1);
+        ap_rprintf(r, "Getting data of %u bytes\n", length);
+        *size = length;
 
         /*
          * ap_hard_timeout("util_read", r);
@@ -432,8 +426,72 @@ static int util_read(request_rec *r, const char **rbuf) {
     return (rc);
 }
 
-#define DEFAULT_ENCTYPE "application/x-www-form-urlencoded"
-#define MAX_VARS 500
+#define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
+#define MULTIPART_ENCTYPE   "multipart/form-data"
+#define MAX_VARS            500
+
+static int parse_urlencoded(lua_thread* thread, const char *data) {
+    int z,i;
+    size_t x,y;
+    const char *key, *val;
+    struct _data
+    {
+        const char  *key;
+        int         size;
+        const char  *values[100];
+    } form[MAX_VARS];
+    
+    for (i = 0; i < MAX_VARS; i++) {
+        form[i].key = 0;
+        form[i].size = 0;
+    }
+    i = 0;
+    
+    while (*data && (val = ap_getword(thread->r->pool, &data, '&'))) {
+        i++;
+        if (i == MAX_VARS) break;
+        key = ap_getword(thread->r->pool, &val, '=');
+        y = strlen(val);
+        for (x = 0; x < y; x++) {
+            if (val[x] == '+') ((char *) val)[x] = ' ';
+        }
+
+        ap_unescape_url((char *) key);
+        ap_unescape_url((char *) val);
+        for (z = 0; z < MAX_VARS; z++) {
+            if (form[z].key == 0 || !strcmp(form[z].key, key)) {
+                form[z].key = key;
+                form[z].values[form[z].size++] = val;
+                break;
+            }
+        }
+    }
+
+    for (z = 0; z < MAX_VARS; z++) {
+        if (form[z].key) {
+            if (form[z].size == 1) {
+                lua_pushstring(thread->state, form[z].key);
+                lua_pushstring(thread->state, form[z].values[0]);
+                lua_rawset(thread->state, -3);
+            } else {
+                lua_pushstring(thread->state, form[z].key);
+                lua_newtable(thread->state);
+                for (i = 0; i < form[z].size; i++) {
+                    lua_pushinteger(thread->state, i + 1);
+                    lua_pushstring(thread->state, form[z].values[i]);
+                    lua_rawset(thread->state, -3);
+                }
+
+                lua_rawset(thread->state, -3);
+            }
+        }
+    }
+    return 1;
+}
+
+static int parse_multipart(lua_thread* thread, const char* data, const char* multipart, apr_off_t size) {
+    return OK;
+}
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -441,23 +499,13 @@ static int util_read(request_rec *r, const char **rbuf) {
 static int lua_parse_post(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~~~~~*/
-    const char  *data;
-    const char  *key,
-                *val,
-                *type;
-	struct _data {
-		const char* key;
-		int size;
-		const char* values[100];
-	} form[MAX_VARS];
-	int i = 0,z = 0;
+    const char  *data, *type;
+    char multipart[256];
+    int         i = 0;
     lua_thread  *thread = 0;
-    size_t x = 0, y = 0;
+    apr_off_t size = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
-	for (i = 0; i < MAX_VARS; i++) {
-		form[i].key = 0;
-		form[i].size = 0;
-	}
+
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
@@ -465,53 +513,23 @@ static int lua_parse_post(lua_State *L) {
         if (thread->r->method_number != M_POST) {
             return (0);
         }
-
+        memset(multipart, 0, 256);
         type = apr_table_get(thread->r->headers_in, "Content-Type");
-        if (strcasecmp(type, DEFAULT_ENCTYPE) != 0) {
-            return (0);
+        if (sscanf(type, "multipart/form-data; boundary=%250c", multipart) == 1) {
+            if (util_read(thread->r, &data, &size) != OK) {
+                return (0);
+            }
+            parse_multipart(thread, data, multipart, size);
+            return (1);
         }
-
-        if (util_read(thread->r, &data) != OK) {
-            return (0);
+        if (strcasecmp(type, DEFAULT_ENCTYPE) == 0) {
+            if (util_read(thread->r, &data, &size) != OK) {
+                return (0);
+            }
+            parse_urlencoded(thread, data);
+            return (1);
         }
-		i = 0;
-        while (*data && (val = ap_getword(thread->r->pool, &data, '&'))) {
-			i++;
-			if (i == MAX_VARS) break;
-            key = ap_getword(thread->r->pool, &val, '=');
-            y = strlen(val);
-            for (x=0;x<y;x++) { if (val[x] == '+') ((char*) val)[x] = ' '; }
-            ap_unescape_url((char *) key);
-            ap_unescape_url((char *) val);
-			for (z = 0; z < MAX_VARS;z++) {
-				if (form[z].key == 0 || !strcmp(form[z].key, key)) {
-					form[z].key = key;
-					form[z].values[form[z].size++] = val;
-					break;
-				}
-			}
-        }
-		for (z = 0; z < MAX_VARS; z++) {
-			if (form[z].key) {
-				if (form[z].size == 1) {
-					lua_pushstring(thread->state, form[z].key);
-					lua_pushstring(thread->state, form[z].values[0]);
-					lua_rawset(thread->state, -3);
-				}
-				else {
-					lua_pushstring(thread->state, form[z].key);
-					lua_newtable(thread->state);
-					for (i = 0; i < form[z].size; i++) {
-						lua_pushinteger(thread->state, i+1);
-						lua_pushstring(thread->state, form[z].values[i]);
-						lua_rawset(thread->state, -3);
-					}
-					lua_rawset(thread->state, -3);
-				}
-			}
-		}
-
-        return (1);
+        return 0;
     } else return (0);
 }
 
@@ -523,60 +541,17 @@ static int lua_parse_get(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~~~~~*/
     const char  *data;
-    const char  *key,
-                *val;
     lua_thread  *thread = 0;
-    size_t x = 0,y=0;
-	struct _data {
-		const char* key;
-		int size;
-		const char* values[100];
-	} form[MAX_VARS];
-	int i = 0,z = 0;
+    size_t      x = 0,
+                y = 0;
+ 
     /*~~~~~~~~~~~~~~~~~~~~*/
-	for (i = 0; i < MAX_VARS; i++) {
-		form[i].key = 0;
-		form[i].size = 0;
-	}
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
         lua_newtable(thread->state);
         data = thread->r->args;
-        while (*data && (val = ap_getword(thread->r->pool, &data, '&'))) {
-            key = ap_getword(thread->r->pool, &val, '=');
-            y = strlen(val);
-            for (x=0;x<y;x++) { if (val[x] == '+') ((char*) val)[x] = ' '; }
-            ap_unescape_url((char *) key);
-            ap_unescape_url((char *) val);
-            for (z = 0; z < MAX_VARS;z++) {
-				if (form[z].key == 0 || !strcmp(form[z].key, key)) {
-					form[z].key = key;
-					form[z].values[form[z].size++] = val;
-					break;
-				}
-			}
-        }
-		for (z = 0; z < MAX_VARS; z++) {
-			if (form[z].key) {
-				if (form[z].size == 1) {
-					lua_pushstring(thread->state, form[z].key);
-					lua_pushstring(thread->state, form[z].values[0]);
-					lua_rawset(thread->state, -3);
-				}
-				else {
-					lua_pushstring(thread->state, form[z].key);
-					lua_newtable(thread->state);
-					for (i = 0; i < form[z].size; i++) {
-						lua_pushinteger(thread->state, i+1);
-						lua_pushstring(thread->state, form[z].values[i]);
-						lua_rawset(thread->state, -3);
-					}
-					lua_rawset(thread->state, -3);
-				}
-			}
-		}
-
+        parse_urlencoded(thread, data);
         return (1);
     } else return (0);
 }
@@ -593,7 +568,7 @@ static const luaL_reg   Global_methods[] =
     { "parseGet", lua_parse_get },
     { "clock", lua_clock },
     { "compileTime", lua_compileTime },
-	{ "setReturnCode", lua_setReturnCode },
+    { "setReturnCode", lua_setReturnCode },
     { 0, 0 }
 };
 
@@ -640,8 +615,7 @@ static void register_lua_functions(lua_State *L) {
 
 /*
  =======================================================================================================================
- * Creates and initializes a new Lua state 
- * @param thread the lua_thread pointer to use @param x The index of the state
+    Creates and initializes a new Lua state @param thread the lua_thread pointer to use @param x The index of the state
     in the grand scheme
  =======================================================================================================================
  */
@@ -651,6 +625,7 @@ void lua_init_state(lua_thread *thread, int x) {
     lua_State   *L;
     int         y;
     /*~~~~~~~~~~~*/
+
     thread->youngest = 0;
     thread->state = luaL_newstate();
     thread->sessions = 0;
@@ -672,9 +647,6 @@ void lua_init_state(lua_thread *thread, int x) {
     Acquires a Lua state from the global stack
  =======================================================================================================================
  */
-
-
-
 lua_thread *lua_acquire_state(void) {
 
     /*~~~~~~~~~~~~~~~~~~*/
@@ -682,6 +654,7 @@ lua_thread *lua_acquire_state(void) {
     int         found = 0;
     lua_thread  *L = 0;
     /*~~~~~~~~~~~~~~~~~~*/
+
 #ifndef _WIN32
     pthread_mutex_lock(&Lua_states.mutex);
 #endif
@@ -694,21 +667,25 @@ lua_thread *lua_acquire_state(void) {
             break;
         }
     }
-	#ifndef _WIN32
+
+#ifndef _WIN32
     pthread_mutex_unlock(&Lua_states.mutex);
-	#endif
-    if (found) {
+#endif
+    if (found)
+    {
+        /*~~~~~~*/
 #ifdef _WIN32
-		clock_t t;
-		t = clock();
-		L->t.tv_sec = (t/CLOCKS_PER_SEC);
-		L->t.tv_nsec = (t % CLOCKS_PER_SEC) * (1000000000/CLOCKS_PER_SEC);
+        clock_t t;
+        /*~~~~~~*/
+
+        t = clock();
+        L->t.tv_sec = (t / CLOCKS_PER_SEC);
+        L->t.tv_nsec = (t % CLOCKS_PER_SEC) * (1000000000 / CLOCKS_PER_SEC);
 #else
         clock_gettime(CLOCK_MONOTONIC, &L->t);
 #endif
         return (L);
-    }
-    else {
+    } else {
         sleep(1);
         return (lua_acquire_state());
     }
@@ -716,8 +693,7 @@ lua_thread *lua_acquire_state(void) {
 
 /*
  =======================================================================================================================
- * Releases a Lua state and frees it up for use elsewhere 
- * @param X the lua_State to release
+    Releases a Lua state and frees it up for use elsewhere @param X the lua_State to release
  =======================================================================================================================
  */
 void lua_release_state(lua_State *X) {
@@ -727,7 +703,7 @@ void lua_release_state(lua_State *X) {
     /*~~*/
 
     lua_gc(X, LUA_GCSTEP, 1);
-	#ifndef _WIN32
+#ifndef _WIN32
     pthread_mutex_lock(&Lua_states.mutex);
 #endif
     for (x = 0; x < LUA_STATES; x++) {
@@ -742,7 +718,8 @@ void lua_release_state(lua_State *X) {
             break;
         }
     }
-	#ifndef _WIN32
+
+#ifndef _WIN32
     pthread_mutex_unlock(&Lua_states.mutex);
 #endif
 }
@@ -762,10 +739,11 @@ static void module_init(void) {
     /*~~*/
     int x;
     /*~~*/
-	#ifndef _WIN32
+
+#ifndef _WIN32
     pthread_mutex_init(&Lua_states.mutex, 0);
 #endif
-    Lua_states.states = (lua_thread*) calloc(LUA_STATES, sizeof(lua_thread));
+    Lua_states.states = (lua_thread *) calloc(LUA_STATES, sizeof(lua_thread));
     for (x = 0; x < LUA_STATES; x++) {
         if (!Lua_states.states[x].state) {
             Lua_states.states[x].files = calloc(LUA_FILES, sizeof(plua_files));
@@ -830,48 +808,58 @@ int lua_parse_file(lua_thread *thread, char *input) {
             char    *test = (char *) calloc(1, matchStart - input + at + 20);
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-            // Add any preceding raw html as an echo
+            /* Add any preceding raw html as an echo */
             X = matchStart[0];
             matchStart[0] = 0;
 #ifdef _WIN32
-			_snprintf_c(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
+            _snprintf_c(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
 #else
             snprintf(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
 #endif
             matchStart[0] = X;
-    //        ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
+
+            /*
+             * ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
+             */
             lua_add_code(&output, test);
             free(test);
-            
-            // Find the beginning and end of the plua chunk
+
+            /* Find the beginning and end of the plua chunk */
             at = (matchStart - input) + 2;
             matchEnd = strstr((char *) matchStart + 2, "?>");
             if (!matchEnd) matchEnd = (input + strlen(input));
             if (matchEnd) {
+
+                /*~~~~~~~~~~~~~~~*/
                 char    *test = 0;
                 char    *etest = 0;
-                // <?=variable?> check
+                /*~~~~~~~~~~~~~~~*/
+
+                /* <?=variable?> check */
                 if (matchStart[2] == '=') {
-                    test = (char *) calloc(1, matchEnd - matchStart+2);
-                    etest = (char*) calloc(1, matchEnd - matchStart + 10);
-                    
+                    test = (char *) calloc(1, matchEnd - matchStart + 2);
+                    etest = (char *) calloc(1, matchEnd - matchStart + 10);
                     strncpy(test, matchStart + 3, matchEnd - matchStart - 3);
-                    test[matchEnd - matchStart-3] = 0;
+                    test[matchEnd - matchStart - 3] = 0;
                     at = matchEnd - input + 2;
                     sprintf(etest, "echo(%s);", test);
-                //  ap_rprintf(thread->r, "Adding echo-code: <pre>echo(%s)</pre><br/>", ap_escape_html(thread->r->pool, test));
+
+                    /*
+                     * ap_rprintf(thread->r, "Adding echo-code: <pre>echo(%s)</pre><br/>",
+                     * ap_escape_html(thread->r->pool, test));
+                     */
                     lua_add_code(&output, etest);
                     free(test);
                     free(etest);
-                }
-                // <? code ?> check
-                else {
-                
-                    test = (char *) calloc(1, matchEnd - matchStart+2);
+                } /* <? code ?> check */ else {
+                    test = (char *) calloc(1, matchEnd - matchStart + 2);
                     strncpy(test, matchStart + 2, matchEnd - matchStart - 2);
-                    test[matchEnd - matchStart-2] = 0;
+                    test[matchEnd - matchStart - 2] = 0;
                     at = matchEnd - input + 2;
-    //              ap_rprintf(thread->r, "Adding code: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
+
+                    /*
+                     * ap_rprintf(thread->r, "Adding code: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
+                     */
                     lua_add_code(&output, test);
                     free(test);
                 }
@@ -882,10 +870,11 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
                 char    *test = (char *) calloc(1, strlen(input) - at + 20);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-				#ifdef _WIN32
+
+#ifdef _WIN32
                 _snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
 #else
-				snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
+                snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
 #endif
                 at = inputSize;
                 lua_add_code(&output, test);
@@ -945,7 +934,7 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
             iSize = ftell(input);
             fseek(input, 0, SEEK_SET);
             iSize = iSize ? iSize : 1;
-            iBuffer = (char *) calloc(1,iSize+1);
+            iBuffer = (char *) calloc(1, iSize + 1);
             fread(iBuffer, iSize, 1, input);
             fclose(input);
             rc = lua_parse_file(thread, iBuffer);
@@ -955,12 +944,16 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
             }
 
             if (!rc) {
+
+                /*~~~~~~~~~~~~~~*/
                 int foundSlot = 0;
+                /*~~~~~~~~~~~~~~*/
+
                 x = luaL_ref(thread->state, LUA_REGISTRYINDEX);
 
                 /*
                  * ap_rprintf(thread->r,"Pushed the string onto the registry at index %u<br/>", x);
-                 * * Put the compiled file into the files struct
+                 * Put the compiled file into the files struc
                  */
                 for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
@@ -969,25 +962,33 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                         thread->files[y].refindex = x;
                         foundSlot = 1;
                         thread->youngest = y;
+
                         /*
                          * ap_rprintf(thread->r,"Pushed the into the file list at index %u<br/>", y);
                          */
                         break;
                     }
                 }
+
                 if (!foundSlot) {
-                    // All slots are full, use the oldest slot for the new file
+
+                    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+                    /* All slots are full, use the oldest slot for the new file */
                     int y = (thread->youngest + 1) % LUA_FILES;
+                    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
                     thread->youngest = y;
                     strcpy(thread->files[y].filename, thread->r->filename);
                     thread->files[y].modified = statbuf.st_mtime;
                     thread->files[y].refindex = x;
                 }
+
                 return (x);
             }
         } else return (-1);
     }
-	return -1;
+
+    return (-1);
 }
 
 /*
@@ -1004,7 +1005,8 @@ static int plua_handler(request_rec *r) {
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
     if (stat(r->filename, &statbuf) == -1) exists = 0;
-    else if (statbuf.st_mode & 0x00400000)  exists = 0;
+    else if (statbuf.st_mode & 0x00400000)
+        exists = 0;
     if (!exists) {
         ap_set_content_type(r, "text/html;charset=ascii");
         ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
@@ -1022,20 +1024,20 @@ static int plua_handler(request_rec *r) {
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         l->r = r;
-		l->returnCode = OK;
+        l->returnCode = OK;
         lua_pushlightuserdata(L, l);
         x = luaL_ref(L, LUA_REGISTRYINDEX);
         rc = lua_compile_file(l, r->filename);
         if (rc < 1) {
 
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-            const char    *err = lua_tostring(L, -1);
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+            const char  *err = lua_tostring(L, -1);
+            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
             err = err ? err : "(nil)";
             ap_set_content_type(r, "text/html;charset=ascii");
             ap_rprintf(r, "<h3>Compiler error in %s:</h3><pre>%s</pre>", r->filename, err);
-			rc = OK;
+            rc = OK;
         } else {
 
             /*$2
@@ -1046,17 +1048,16 @@ static int plua_handler(request_rec *r) {
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
             l->typeSet = 0;
-			
             rc = 0;
             if (LUA_USECALL) lua_call(L, 0, LUA_MULTRET);
             else rc = lua_pcall(L, 0, LUA_MULTRET, 0);
             if (rc) {
                 ap_set_content_type(r, "text/html;charset=ascii");
                 ap_rprintf(r, "<h3>Run-time error:</h3><pre>%s</pre>", lua_tostring(L, -1));
-				rc = OK;
+                rc = OK;
             } else {
                 if (l->typeSet == 0) ap_set_content_type(r, "text/html;charset=ascii");
-				rc = l->returnCode;
+                rc = l->returnCode;
 
                 /*
                  * ap_rprintf(r, "<b>Compiled and ran fine from index %u</b>", rc);
@@ -1067,13 +1068,13 @@ static int plua_handler(request_rec *r) {
         /* Cleanup */
         luaL_unref(L, LUA_REGISTRYINDEX, x);
         lua_release_state(L);
-		return rc;
+        return (rc);
 
         /*
          * lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-         * *p = lua_touserdata(L, -1);
-         * *ap_rprintf(r, "<b>Got it back as %lu\n</b>", p);
-         * * do stuf
+         * p = lua_touserdata(L, -1);
+         * ap_rprintf(r, "<b>Got it back as %lu\n</b>", p);
+         * do stuf
          */
     }
 
@@ -1089,36 +1090,53 @@ static void register_hooks(apr_pool_t *pool) {
     ap_hook_handler(plua_handler, NULL, NULL, APR_HOOK_LAST);
 }
 
-const char* plua_set_LuaStates(cmd_parms* cmd, void* cfg, const char* arg) {
+/*
+ =======================================================================================================================
+ =======================================================================================================================
+ */
+const char *plua_set_LuaStates(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
     int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
     LUA_STATES = x ? x : 50;
-    return NULL;
+    return (NULL);
 }
 
-const char* plua_set_LuaRuns(cmd_parms* cmd, void* cfg, const char* arg) {
+/*
+ =======================================================================================================================
+ =======================================================================================================================
+ */
+const char *plua_set_LuaRuns(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
     int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
     LUA_RUNS = x ? x : 500;
-    return NULL;
+    return (NULL);
 }
 
-const char* plua_set_LuaFiles(cmd_parms* cmd, void* cfg, const char* arg) {
+/*
+ =======================================================================================================================
+ =======================================================================================================================
+ */
+const char *plua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
     int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
     LUA_FILES = x ? x : 200;
-    return NULL;
+    return (NULL);
 }
 
-static const command_rec my_directives[] = {
-  AP_INIT_TAKE1("PluaStates", plua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
-  AP_INIT_TAKE1("PluaRuns", plua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
-  AP_INIT_TAKE1("PluaFiles", plua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
-  { NULL }
-} ;
-
-module AP_MODULE_DECLARE_DATA   plua_module = { 
-    STANDARD20_MODULE_STUFF, 
-    NULL,
-    NULL, 
-    NULL, 
-    NULL, 
-    my_directives, 
-    register_hooks };
+static const command_rec        my_directives[] =
+{
+    AP_INIT_TAKE1("PluaStates", plua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
+    AP_INIT_TAKE1("PluaRuns", plua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
+    AP_INIT_TAKE1("PluaFiles", plua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
+    { NULL }
+};
+module AP_MODULE_DECLARE_DATA   plua_module = { STANDARD20_MODULE_STUFF, NULL, NULL, NULL, NULL, my_directives, register_hooks };
