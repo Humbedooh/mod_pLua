@@ -1,0 +1,13 @@
+0.13:
+- Added ChangeLog.txt to the project.
+- Increased the precision of clock() and compileTime() on Windows systems to approximately 1/10th of a microsecond
+
+0.12:
+- multipart form data can now be parsed
+- Added a limit to both number of keys and the number of key values in a HTTP request
+
+0.11:
+- Consolidated the form data parsing into two new parsing functions that both POST and GET use.
+- Getting ready to parse multipart form data.
+- Added support for multiple values in form data
+- Added a maximum number of 500 form fields parsed by parseGet and parsePost
