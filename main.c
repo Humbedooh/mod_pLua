@@ -397,7 +397,7 @@ static int util_read(request_rec *r, const char **rbuf, apr_off_t* size) {
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         *rbuf = apr_pcalloc(r->pool, length + 1);
-        ap_rprintf(r, "Getting data of %u bytes\n", length);
+//        ap_rprintf(r, "Getting data of %u bytes\n", length);
         *size = length;
 
         /*
@@ -429,6 +429,7 @@ static int util_read(request_rec *r, const char **rbuf, apr_off_t* size) {
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            500
+#define MAX_MULTIPLES		20
 
 static int parse_urlencoded(lua_thread* thread, const char *data) {
     int z,i;
@@ -438,7 +439,7 @@ static int parse_urlencoded(lua_thread* thread, const char *data) {
     {
         const char  *key;
         int         size;
-        const char  *values[100];
+        const char  *values[MAX_MULTIPLES];
     } form[MAX_VARS];
     
     for (i = 0; i < MAX_VARS; i++) {
@@ -461,6 +462,7 @@ static int parse_urlencoded(lua_thread* thread, const char *data) {
         for (z = 0; z < MAX_VARS; z++) {
             if (form[z].key == 0 || !strcmp(form[z].key, key)) {
                 form[z].key = key;
+				if ( form[z].size == MAX_MULTIPLES) continue; 
                 form[z].values[form[z].size++] = val;
                 break;
             }
@@ -490,6 +492,77 @@ static int parse_urlencoded(lua_thread* thread, const char *data) {
 }
 
 static int parse_multipart(lua_thread* thread, const char* data, const char* multipart, apr_off_t size) {
+	struct
+    {
+        char  *key;
+        int         size;
+        char  *values[MAX_MULTIPLES];
+        int         sizes[MAX_MULTIPLES];
+    } form[MAX_VARS];
+
+    char *buffer;
+    char *key, *filename;
+    char* start = 0, *end = 0, *crlf = 0;
+	int i, z;
+	
+	size_t vlen = 0;
+    size_t len = strlen(multipart);
+    
+	for (i = 0; i < MAX_VARS-1; i++) {
+        form[i].key = 0;
+        form[i].size = 0;
+    }
+
+    i = 0;
+    for (start = strstr((char*) data, multipart); start != start+size; start = end) {
+		i++;
+		if (i == MAX_VARS) break;
+        end = strstr((char*) (start+1), multipart);
+        if (!end) end = start + size;
+            
+        crlf = strstr((char*) start, "\r\n\r\n");
+        if (!crlf) break;
+        key = (char*) apr_pcalloc(thread->r->pool, 256);
+        filename = (char*) apr_pcalloc(thread->r->pool, 256);
+        buffer = (char*) apr_pcalloc(thread->r->pool, end - crlf);
+		vlen = end - crlf - 8;
+        memcpy(buffer, crlf + 4, vlen);
+        sscanf(start + len + 2, "Content-Disposition: form-data; name=\"%255[^\"]\"; filename=\"%255[^\"]\"", key, filename);
+		if (strlen(key)) {
+			for (z = 0; z < MAX_VARS-1; z++) {
+				if (form[z].key == 0 || !strcmp(form[z].key, key)) {
+					form[z].key = key;
+					if ( form[z].size == MAX_MULTIPLES) continue; 
+					if (strlen(filename)) {
+						form[z].sizes[form[z].size] = strlen(filename);
+						form[z].values[form[z].size++] = filename;
+					}
+					form[z].sizes[form[z].size] = vlen;
+					form[z].values[form[z].size++] = buffer;
+					break;
+				}
+			}
+		}
+    }
+	for (z = 0; z < MAX_VARS-1; z++) {
+        if (form[z].key) {
+            if (form[z].size == 1) {
+                lua_pushstring(thread->state, form[z].key);
+                lua_pushlstring(thread->state, form[z].values[0], form[z].sizes[0]);
+                lua_rawset(thread->state, -3);
+            } else {
+                lua_pushstring(thread->state, form[z].key);
+                lua_newtable(thread->state);
+                for (i = 0; i < form[z].size; i++) {
+                    lua_pushinteger(thread->state, i + 1);
+                    lua_pushlstring(thread->state, form[z].values[i], form[z].sizes[i]);
+                    lua_rawset(thread->state, -3);
+                }
+
+                lua_rawset(thread->state, -3);
+            }
+        }
+    }
     return OK;
 }
 /*
