@@ -23,7 +23,7 @@
 #include <pthread.h>
 #include <time.h>
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        11
+#define PLUA_VERSION        13
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -255,7 +255,7 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Remote-Address");
         lua_pushstring(thread->state, thread->r->connection->remote_ip);
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Lua-Thread");
+        lua_pushstring(thread->state, "Plua-Handle");
         lua_pushfstring(thread->state, "%p", thread);
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Lua-State");
@@ -320,20 +320,25 @@ static int lua_clock(lua_State *L)
     /*~~~~~~~~~~~~~~*/
 #ifdef _WIN32
     clock_t         f;
+	LARGE_INTEGER moo;
 #else
     struct timespec t;
 #endif
     /*~~~~~~~~~~~~~~*/
-
+	
     lua_settop(L, 0);
     lua_newtable(L);
 #ifdef _WIN32
+	QueryPerformanceCounter(&moo);
+
     f = clock();
     lua_pushliteral(L, "seconds");
-    lua_pushinteger(L, f / CLOCKS_PER_SEC);
+    //lua_pushinteger(L, f / CLOCKS_PER_SEC);
+	lua_pushinteger(L, moo.QuadPart / 10000000);
     lua_rawset(L, -3);
     lua_pushliteral(L, "nanoseconds");
-    lua_pushinteger(L, (f % CLOCKS_PER_SEC) * (1000000000 / CLOCKS_PER_SEC));
+	lua_pushinteger(L, moo.QuadPart %  10000000* 100) ;
+    //lua_pushinteger(L, (f % CLOCKS_PER_SEC) * (1000000000 / CLOCKS_PER_SEC));
     lua_rawset(L, -3);
 #else
     clock_gettime(CLOCK_MONOTONIC, &t);
@@ -396,7 +401,7 @@ static int util_read(request_rec *r, const char **rbuf, apr_off_t* size) {
         apr_off_t   length = r->remaining;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-        *rbuf = apr_pcalloc(r->pool, length + 1);
+        *rbuf = (const char*) apr_pcalloc(r->pool, length + 1);
 //        ap_rprintf(r, "Getting data of %u bytes\n", length);
         *size = length;
 
@@ -749,11 +754,12 @@ lua_thread *lua_acquire_state(void) {
         /*~~~~~~*/
 #ifdef _WIN32
         clock_t t;
+		LARGE_INTEGER moo;
+		
         /*~~~~~~*/
-
-        t = clock();
-        L->t.tv_sec = (t / CLOCKS_PER_SEC);
-        L->t.tv_nsec = (t % CLOCKS_PER_SEC) * (1000000000 / CLOCKS_PER_SEC);
+		QueryPerformanceCounter(&moo);
+		L->t.tv_sec = (moo.QuadPart / 10000000);
+		L->t.tv_nsec = (moo.QuadPart % 10000000) * 100;
 #else
         clock_gettime(CLOCK_MONOTONIC, &L->t);
 #endif
