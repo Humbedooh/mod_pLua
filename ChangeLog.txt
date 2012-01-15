@@ -1,6 +1,8 @@
 0.13:
 - Added ChangeLog.txt to the project.
 - Increased the precision of clock() and compileTime() on Windows systems to approximately 1/10th of a microsecond
+- Changed from ap_rputs to ap_write for binary output compatibility
+- Error outputs are now escaped so HTML code in the message won't obscure the rest of the message.
 
 0.12:
 - multipart form data can now be parsed

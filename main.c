@@ -23,7 +23,7 @@
 #include <pthread.h>
 #include <time.h>
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        13
+#define PLUA_VERSION        14
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -119,7 +119,7 @@ static int lua_echo(lua_State *L) {
     /*~~~~~~~~~~~~~~~~*/
     const char  *el;
     lua_thread  *thread;
-    int         y,
+    int         x,y,
                 z;
     /*~~~~~~~~~~~~~~~~*/
 
@@ -132,8 +132,11 @@ static int lua_echo(lua_State *L) {
          */
         z = lua_gettop(L);
         for (y = 1; y < z; y++) {
-            el = lua_tostring(L, y);
-            if (el) ap_rputs(el, thread->r);
+            x = 0;
+            el = lua_tolstring(L, y, &x);
+//            if (el) ap_rputs(el, thread->r);
+            if (el) ap_rwrite(el, x, thread->r);
+            
         }
 
         lua_settop(L, 0);
@@ -321,6 +324,7 @@ static int lua_clock(lua_State *L)
 #ifdef _WIN32
     clock_t         f;
 	LARGE_INTEGER moo;
+	LARGE_INTEGER cow;
 #else
     struct timespec t;
 #endif
@@ -330,14 +334,15 @@ static int lua_clock(lua_State *L)
     lua_newtable(L);
 #ifdef _WIN32
 	QueryPerformanceCounter(&moo);
+	QueryPerformanceFrequency(&cow);
 
     f = clock();
     lua_pushliteral(L, "seconds");
     //lua_pushinteger(L, f / CLOCKS_PER_SEC);
-	lua_pushinteger(L, moo.QuadPart / 10000000);
+	lua_pushinteger(L, moo.QuadPart / cow.QuadPart);
     lua_rawset(L, -3);
     lua_pushliteral(L, "nanoseconds");
-	lua_pushinteger(L, moo.QuadPart %  10000000* 100) ;
+	lua_pushinteger(L, moo.QuadPart %  cow.QuadPart* (1000000000/cow.QuadPart)) ;
     //lua_pushinteger(L, (f % CLOCKS_PER_SEC) * (1000000000 / CLOCKS_PER_SEC));
     lua_rawset(L, -3);
 #else
@@ -753,13 +758,13 @@ lua_thread *lua_acquire_state(void) {
     {
         /*~~~~~~*/
 #ifdef _WIN32
-        clock_t t;
 		LARGE_INTEGER moo;
-		
+		LARGE_INTEGER cow;
         /*~~~~~~*/
 		QueryPerformanceCounter(&moo);
-		L->t.tv_sec = (moo.QuadPart / 10000000);
-		L->t.tv_nsec = (moo.QuadPart % 10000000) * 100;
+		QueryPerformanceFrequency(&cow);
+		L->t.tv_sec = (moo.QuadPart / cow.QuadPart);
+		L->t.tv_nsec = (moo.QuadPart % cow.QuadPart) * (1000000000/cow.QuadPart);
 #else
         clock_gettime(CLOCK_MONOTONIC, &L->t);
 #endif
@@ -1110,12 +1115,14 @@ static int plua_handler(request_rec *r) {
         if (rc < 1) {
 
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+			char* errX;
             const char  *err = lua_tostring(L, -1);
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
             err = err ? err : "(nil)";
+            errX = ap_escape_html(r->pool, err);
             ap_set_content_type(r, "text/html;charset=ascii");
-            ap_rprintf(r, "<h3>Compiler error in %s:</h3><pre>%s</pre>", r->filename, err);
+            ap_rprintf(r, "<h3>Compiler error in %s:</h3><pre>%s</pre>", r->filename, errX ? errX : err);
             rc = OK;
         } else {
 
@@ -1124,6 +1131,7 @@ static int plua_handler(request_rec *r) {
                 Push the request handle into the table as t[0].
              -----------------------------------------------------------------------------------------------------------
              */
+			
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
             l->typeSet = 0;
@@ -1131,8 +1139,15 @@ static int plua_handler(request_rec *r) {
             if (LUA_USECALL) lua_call(L, 0, LUA_MULTRET);
             else rc = lua_pcall(L, 0, LUA_MULTRET, 0);
             if (rc) {
+				/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+				char* errX;
+				const char  *err = lua_tostring(L, -1);
+				/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+				err = err ? err : "(nil)";
+				errX = ap_escape_html(r->pool, err);
                 ap_set_content_type(r, "text/html;charset=ascii");
-                ap_rprintf(r, "<h3>Run-time error:</h3><pre>%s</pre>", lua_tostring(L, -1));
+                ap_rprintf(r, "<h3>Run-time error:</h3><pre>%s</pre>", errX ? errX : err);
                 rc = OK;
             } else {
                 if (l->typeSet == 0) ap_set_content_type(r, "text/html;charset=ascii");
