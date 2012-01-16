@@ -340,7 +340,7 @@ static int lua_clock(lua_State *L)
 	LARGE_INTEGER cow;
 #else
   //  struct timespec t;
-    timeval tv;
+    struct timeval tv;
 #endif
     /*~~~~~~~~~~~~~~*/
 	
