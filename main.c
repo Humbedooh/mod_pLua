@@ -22,8 +22,12 @@
 #include <lauxlib.h>
 #include <pthread.h>
 #include <time.h>
+#include <unistd.h>
+#ifndef R_OK
+        #define	R_OK		0x04	/* test for read permission */
+#endif
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        14
+#define PLUA_VERSION        15
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -119,8 +123,9 @@ static int lua_echo(lua_State *L) {
     /*~~~~~~~~~~~~~~~~*/
     const char  *el;
     lua_thread  *thread;
-    int         x,y,
+    int         y,
                 z;
+    size_t x;
     /*~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
@@ -266,6 +271,12 @@ static int lua_getEnv(lua_State *L) {
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Request-Method");
         lua_pushstring(thread->state, thread->r->method);
+        lua_rawset(L, -3);
+		lua_pushstring(thread->state, "Filename");
+		lua_pushstring(thread->state, thread->r->filename);
+        lua_rawset(L, -3);
+		lua_pushstring(thread->state, "URI");
+		lua_pushstring(thread->state, thread->r->uri);
         lua_rawset(L, -3);
         return (1);
     }
@@ -524,6 +535,7 @@ static int parse_multipart(lua_thread* thread, const char* data, const char* mul
     }
 
     i = 0;
+    
     for (start = strstr((char*) data, multipart); start != start+size; start = end) {
 		i++;
 		if (i == MAX_VARS) break;
@@ -534,7 +546,7 @@ static int parse_multipart(lua_thread* thread, const char* data, const char* mul
         if (!crlf) break;
         key = (char*) apr_pcalloc(thread->r->pool, 256);
         filename = (char*) apr_pcalloc(thread->r->pool, 256);
-        buffer = (char*) apr_pcalloc(thread->r->pool, end - crlf);
+        buffer = (char*) apr_palloc(thread->r->pool, end - crlf);
 		vlen = end - crlf - 8;
         memcpy(buffer, crlf + 4, vlen);
         sscanf(start + len + 2, "Content-Disposition: form-data; name=\"%255[^\"]\"; filename=\"%255[^\"]\"", key, filename);
@@ -584,7 +596,6 @@ static int lua_parse_post(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~*/
     const char  *data, *type;
     char multipart[256];
-    int         i = 0;
     lua_thread  *thread = 0;
     apr_off_t size = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
@@ -625,8 +636,6 @@ static int lua_parse_get(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~*/
     const char  *data;
     lua_thread  *thread = 0;
-    size_t      x = 0,
-                y = 0;
  
     /*~~~~~~~~~~~~~~~~~~~~*/
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
@@ -877,9 +886,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
     char    *output = 0;
     char    *matchStart,
             *matchEnd;
-    int     totalSize = 0;
     size_t  at = 0;
-    size_t  pos = 0;
     size_t  inputSize = strlen(input);
     char    X = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
@@ -1102,7 +1109,6 @@ static int plua_handler(request_rec *r) {
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         int         x = 0,
                     rc = 0;
-        void        *p = 0;
         lua_thread  *l = lua_acquire_state();
         lua_State   *L = l->state;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
