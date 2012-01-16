@@ -832,7 +832,8 @@ static void module_init(void) {
     /*~~*/
     int x;
     /*~~*/
-
+fprintf(stderr, "mod_plua initializing\r\n");
+    fflush(stderr);
 #ifndef _WIN32
     pthread_mutex_init(&Lua_states.mutex, 0);
 #endif
@@ -1092,7 +1093,8 @@ static int plua_handler(request_rec *r) {
     int         exists = 1;
     struct stat statbuf;
     /*~~~~~~~~~~~~~~~~~~~*/
-
+    fprintf(stderr, "A call was made to mod_plua!\r\n");
+    fflush(stderr);
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
     if (stat(r->filename, &statbuf) == -1) exists = 0;
@@ -1186,6 +1188,8 @@ static int plua_handler(request_rec *r) {
  =======================================================================================================================
  */
 static void register_hooks(apr_pool_t *pool) {
+    fprintf(stderr, "mod_plua.so loaded!\r\n");
+    fflush(stderr);
     module_init();
     ap_hook_handler(plua_handler, NULL, NULL, APR_HOOK_LAST);
 }
