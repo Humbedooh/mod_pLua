@@ -28,7 +28,6 @@
 #endif
 #define LUA_COMPAT_MODULE   1
 #define PLUA_VERSION        15
-#define PLUA_DEBUG
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -335,12 +334,10 @@ static int lua_clock(lua_State *L)
     /*~~~~~~~~~~~~~~*/
 #ifdef _WIN32
     clock_t         f;
-    
 	LARGE_INTEGER moo;
 	LARGE_INTEGER cow;
 #else
-  //  struct timespec t;
-    struct timeval tv;
+    struct timespec t;
 #endif
     /*~~~~~~~~~~~~~~*/
 	
@@ -360,13 +357,12 @@ static int lua_clock(lua_State *L)
     //lua_pushinteger(L, (f % CLOCKS_PER_SEC) * (1000000000 / CLOCKS_PER_SEC));
     lua_rawset(L, -3);
 #else
-    //clock_gettime(CLOCK_MONOTONIC, &t);
-    gettimeofday(&tv, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &t);
     lua_pushliteral(L, "seconds");
-    lua_pushinteger(L, tv.tv_sec);
+    lua_pushinteger(L, t.tv_sec);
     lua_rawset(L, -3);
     lua_pushliteral(L, "nanoseconds");
-    lua_pushinteger(L, tv.tv_usec*1000);
+    lua_pushinteger(L, t.tv_nsec);
     lua_rawset(L, -3);
 #endif
     return (1);
@@ -1101,12 +1097,9 @@ static int plua_handler(request_rec *r) {
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
 
-#ifdef PLUA_DEBUG
     fprintf(stderr, "A call was made to mod_plua!\r\n");
     fflush(stderr);
-#endif
-   
-    
+
     if (stat(r->filename, &statbuf) == -1) exists = 0;
     else if (statbuf.st_mode & 0x00400000)
         exists = 0;
@@ -1124,7 +1117,7 @@ static int plua_handler(request_rec *r) {
         lua_thread  *l = lua_acquire_state();
         lua_State   *L = l->state;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-            
+
         l->r = r;
         l->returnCode = OK;
         lua_pushlightuserdata(L, l);
