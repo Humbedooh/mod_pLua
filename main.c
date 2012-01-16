@@ -1092,7 +1092,8 @@ static int plua_handler(request_rec *r) {
     int         exists = 1;
     struct stat statbuf;
     /*~~~~~~~~~~~~~~~~~~~*/
-
+    fprintf(stderr, "Moo?\r\n");
+    
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
     if (stat(r->filename, &statbuf) == -1) exists = 0;
