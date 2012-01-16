@@ -1,4 +1,4 @@
-AC_INIT([mod_plua], 0.7)
+AC_INIT([mod_plua], 0.16)
 AM_INIT_AUTOMAKE
 AC_PROG_CC
 
@@ -13,10 +13,11 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
 CFLAGS="$my_save_cflags"
 AC_SUBST([AM_CFLAGS])
 
-PKG_CHECK_MODULES(LUA, lua5.1 >= 5.1.2)
+PKG_CHECK_MODULES(LUA, luajit >= 1.0.0)
 PKG_CHECK_MODULES(APR, apr-1 >= 1.3)
-AC_CHECK_LIB(lua5.1, luaL_newstate)
+AC_CHECK_LIB(luajit-5.1, luaL_newstate)
 AC_CHECK_LIB(apr-1, ap_hook_handler)
+AC_CHECK_LIB(libc, clock_gettime)
 
 AC_PROG_RANLIB
 AC_CONFIG_FILES(Makefile)
