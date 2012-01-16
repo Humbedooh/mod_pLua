@@ -843,7 +843,7 @@ fprintf(stderr, "mod_plua initializing\r\n");
             Lua_states.states[x].files = calloc(LUA_FILES, sizeof(plua_files));
             lua_init_state(&Lua_states.states[x], x);
         }
-    }
+    } 
 }
 
 /*
@@ -1093,8 +1093,13 @@ static int plua_handler(request_rec *r) {
     int         exists = 1;
     struct stat statbuf;
     /*~~~~~~~~~~~~~~~~~~~*/
+<<<<<<< HEAD
     fprintf(stderr, "A call was made to mod_plua!\r\n");
     fflush(stderr);
+=======
+    fprintf(stderr, "Moo?\r\n");
+    
+>>>>>>> d96df11c02fb15670c3ea56a3e12c11b1f475495
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
     if (stat(r->filename, &statbuf) == -1) exists = 0;
