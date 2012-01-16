@@ -18,6 +18,7 @@ PKG_CHECK_MODULES(APR, apr-1 >= 1.3)
 AC_CHECK_LIB(luajit-5.1, luaL_newstate)
 AC_CHECK_LIB(apr-1, ap_hook_handler)
 AC_CHECK_LIB(libc, clock_gettime)
+AC_CHECK_LIB(libc, gettimeofday)
 
 AC_PROG_RANLIB
 AC_CONFIG_FILES(Makefile)
