@@ -16,18 +16,19 @@
 #   include <apache2/httpd.h>
 #   include <apache2/http_protocol.h>
 #   include <apache2/http_config.h>
+#include <unistd.h>
 #endif
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
 #include <pthread.h>
 #include <time.h>
-#include <unistd.h>
+
 #ifndef R_OK
         #define	R_OK		0x04	/* test for read permission */
 #endif
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        16
+#define PLUA_VERSION        15
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -60,6 +61,17 @@ static lua_states   Lua_states;
 #   define sleep(a)    Sleep(a * 1000)
 #endif
 
+static void plua_print_error(lua_thread* thread, const char* type) {
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    char* errX;
+    const char  *err = lua_tostring(thread->state, -1);
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+    err = err ? err : "(nil)";
+    errX = ap_escape_html(thread->r->pool, err);
+    ap_set_content_type(thread->r, "text/html;charset=ascii");
+    ap_rprintf(thread->r, "<h2>%s:</h2><pre>%s</pre>", type, errX ? errX : err);
+}
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -648,6 +660,47 @@ static int lua_parse_get(lua_State *L) {
     } else return (0);
 }
 
+static int lua_includeFile(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~~~~~*/
+    const char  *data, *filename;
+    lua_thread  *thread = 0;
+ 
+    /*~~~~~~~~~~~~~~~~~~~~*/
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
+    thread = (lua_thread *) lua_touserdata(L, -1);
+    if (thread) {
+        /*~~~~~~~~~~~~~~~~~~*/
+         struct stat fileinfo;
+         int rc = 0;
+        /*~~~~~~~~~~~~~~~~~~*/
+
+        luaL_checktype(L, 1, LUA_TSTRING);
+        filename = lua_tostring(L, 1);
+        lua_settop(L, 0);
+        if (stat(filename, &fileinfo) == -1) lua_pushboolean(L, 0);
+        else {
+            rc = lua_compile_file(thread, filename);
+            if (rc > 0) {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
+                rc = lua_pcall(L, 0, LUA_MULTRET, 0);
+                if (rc) {
+                    plua_print_error(thread, "Run-time error");
+                    lua_pushboolean(L, 0);
+                }
+                else lua_pushboolean(L, 1);
+                    
+            }
+            else {
+                plua_print_error(thread, "Compiler error in included file");
+                lua_pushboolean(L, 0);
+            }
+        }
+    }
+    return 1;
+}
+
+
 static const luaL_reg   File_methods[] = { { "stat", lua_fileinfo }, { "exists", lua_fileexists }, { 0, 0 } };
 static const luaL_reg   Global_methods[] =
 {
@@ -661,6 +714,7 @@ static const luaL_reg   Global_methods[] =
     { "clock", lua_clock },
     { "compileTime", lua_compileTime },
     { "setReturnCode", lua_setReturnCode },
+    { "include", lua_includeFile },
     { 0, 0 }
 };
 
@@ -974,7 +1028,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
             }
         };
     }
-
+    
     rc = luaL_loadstring(thread->state, output ? output : "echo('no input speficied');");
     if (output) free(output);
     return (rc);
@@ -997,9 +1051,9 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
     struct stat statbuf;
     /*~~~~~~~~~~~~~~~~~~~*/
 
-    stat(thread->r->filename, &statbuf);
+    stat(filename, &statbuf);
     for (x = 0; x < LUA_FILES; x++) {
-        if (!strcmp(thread->files[x].filename, thread->r->filename)) {
+        if (!strcmp(thread->files[x].filename, filename)) {
             if (statbuf.st_mtime != thread->files[x].modified) {
 
                 /*
@@ -1010,9 +1064,9 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                 break;
             } else {
 
-                /*
-                 * ap_rprintf(thread->r,"Found usable compiled version at index %u", x);
-                 */
+                
+//                 ap_rprintf(thread->r,"Found usable compiled version at index %u", x);
+                
                 found = thread->files[x].refindex;
                 return (found);
             }
@@ -1043,13 +1097,13 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
 
                 x = luaL_ref(thread->state, LUA_REGISTRYINDEX);
 
-                /*
-                 * ap_rprintf(thread->r,"Pushed the string onto the registry at index %u<br/>", x);
-                 * Put the compiled file into the files struc
-                 */
+                
+                //  ap_rprintf(thread->r,"Pushed the string from %s onto the registry at index %u<br/>", filename, x);
+                  
+                 
                 for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
-                        strcpy(thread->files[y].filename, thread->r->filename);
+                        strcpy(thread->files[y].filename, filename);
                         thread->files[y].modified = statbuf.st_mtime;
                         thread->files[y].refindex = x;
                         foundSlot = 1;
@@ -1070,7 +1124,7 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
                     thread->youngest = y;
-                    strcpy(thread->files[y].filename, thread->r->filename);
+                    strcpy(thread->files[y].filename, filename);
                     thread->files[y].modified = statbuf.st_mtime;
                     thread->files[y].refindex = x;
                 }
@@ -1121,16 +1175,7 @@ static int plua_handler(request_rec *r) {
         x = luaL_ref(L, LUA_REGISTRYINDEX);
         rc = lua_compile_file(l, r->filename);
         if (rc < 1) {
-
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-			char* errX;
-            const char  *err = lua_tostring(L, -1);
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-            err = err ? err : "(nil)";
-            errX = ap_escape_html(r->pool, err);
-            ap_set_content_type(r, "text/html;charset=ascii");
-            ap_rprintf(r, "<h3>Compiler error in %s:</h3><pre>%s</pre>", r->filename, errX ? errX : err);
+            plua_print_error(l, "Compiler error");
             rc = OK;
         } else {
 
@@ -1147,15 +1192,7 @@ static int plua_handler(request_rec *r) {
             if (LUA_USECALL) lua_call(L, 0, LUA_MULTRET);
             else rc = lua_pcall(L, 0, LUA_MULTRET, 0);
             if (rc) {
-				/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-				char* errX;
-				const char  *err = lua_tostring(L, -1);
-				/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-				err = err ? err : "(nil)";
-				errX = ap_escape_html(r->pool, err);
-                ap_set_content_type(r, "text/html;charset=ascii");
-                ap_rprintf(r, "<h3>Run-time error:</h3><pre>%s</pre>", errX ? errX : err);
+                plua_print_error(l, "Run-time error");
                 rc = OK;
             } else {
                 if (l->typeSet == 0) ap_set_content_type(r, "text/html;charset=ascii");

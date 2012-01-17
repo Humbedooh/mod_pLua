@@ -3,7 +3,8 @@ AM_INIT_AUTOMAKE
 AC_PROG_CC
 
 my_save_cflags="$CFLAGS"
-CFLAGS=-m64
+CFLAGS=-m64 
+
 AC_MSG_CHECKING([whether CC supports -m64])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
     [AC_MSG_RESULT([yes])]
@@ -15,10 +16,11 @@ AC_SUBST([AM_CFLAGS])
 
 LUALIB="lua5.1"
 
- 
+LDFLAGS="$LDFLAGS -L/usr/local/lib"
 PKG_CHECK_MODULES(APR, apr-1 >= 1.3)
-AC_CHECK_LIB([luajit-5.1], luaL_newstate, LUALIB="luajit-5.1")
-AC_CHECK_LIB($LUALIB, luaL_pcall)
+PKG_CHECK_MODULES(LuaJIT, luajit >= 1.0, LUALIB="luajit-5.1")
+AC_CHECK_LIB([$LUALIB], luaL_newstate)
+AC_CHECK_LIB($LUALIB, lua_pcall)
 AC_CHECK_LIB([apr-1], ap_hook_handler)
 AC_CHECK_LIB(rt, clock_gettime, have_clock_gettime=yes)
 
