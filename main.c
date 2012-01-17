@@ -28,7 +28,11 @@
         #define	R_OK		0x04	/* test for read permission */
 #endif
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        15
+#define PLUA_VERSION        16
+#define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
+#define MULTIPART_ENCTYPE   "multipart/form-data"
+#define MAX_VARS            750
+#define MAX_MULTIPLES       25
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -56,6 +60,15 @@ typedef struct
     lua_thread      *states;
     pthread_mutex_t mutex;
 } lua_states;
+
+typedef struct
+    {
+        const char  *key;
+        int         size;
+        int         sizes[MAX_MULTIPLES];
+        const char  *values[MAX_MULTIPLES];
+    } formdata;
+
 static lua_states   Lua_states;
 #ifdef _WIN32
 #   define sleep(a)    Sleep(a * 1000)
@@ -459,26 +472,14 @@ static int util_read(request_rec *r, const char **rbuf, apr_off_t* size) {
     return (rc);
 }
 
-#define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
-#define MULTIPART_ENCTYPE   "multipart/form-data"
-#define MAX_VARS            500
-#define MAX_MULTIPLES		20
+
 
 static int parse_urlencoded(lua_thread* thread, const char *data) {
     int z,i;
     size_t x,y;
     const char *key, *val;
-    struct _data
-    {
-        const char  *key;
-        int         size;
-        const char  *values[MAX_MULTIPLES];
-    } form[MAX_VARS];
+    formdata* form = apr_pcalloc(thread->r->pool, sizeof(formdata)*MAX_VARS);
     
-    for (i = 0; i < MAX_VARS; i++) {
-        form[i].key = 0;
-        form[i].size = 0;
-    }
     i = 0;
     
     while (*data && (val = ap_getword(thread->r->pool, &data, '&'))) {
@@ -525,27 +526,15 @@ static int parse_urlencoded(lua_thread* thread, const char *data) {
 }
 
 static int parse_multipart(lua_thread* thread, const char* data, const char* multipart, apr_off_t size) {
-	struct
-    {
-        char  *key;
-        int         size;
-        char  *values[MAX_MULTIPLES];
-        int         sizes[MAX_MULTIPLES];
-    } form[MAX_VARS];
 
     char *buffer;
     char *key, *filename;
     char* start = 0, *end = 0, *crlf = 0;
-	int i, z;
-	
-	size_t vlen = 0;
-    size_t len = strlen(multipart);
-    
-	for (i = 0; i < MAX_VARS-1; i++) {
-        form[i].key = 0;
-        form[i].size = 0;
-    }
-
+    int i, z;
+    size_t vlen = 0;
+    size_t len = 0;
+    formdata* form = (formdata*) apr_pcalloc(thread->r->pool, sizeof(formdata)*MAX_VARS);
+    len = strlen(multipart);
     i = 0;
     
     for (start = strstr((char*) data, multipart); start != start+size; start = end) {
@@ -663,7 +652,7 @@ static int lua_parse_get(lua_State *L) {
 static int lua_includeFile(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~~~~~*/
-    const char  *data, *filename;
+    const char  *filename;
     lua_thread  *thread = 0;
  
     /*~~~~~~~~~~~~~~~~~~~~*/
