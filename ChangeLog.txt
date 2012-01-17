@@ -1,3 +1,8 @@
+0.16:
+- Changed formdata structs to be allocated by APR instead of hardcoded
+
+0.15:
+- Added include(filename) for including other plua scripts or HTML content
 
 0.14:
 - Fine-tuned the clock() and compileTime() precisions on Windows

@@ -33,6 +33,7 @@
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
 #define MAX_MULTIPLES       25
+#define PLUA_DEBUG 1
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -1045,16 +1046,16 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
         if (!strcmp(thread->files[x].filename, filename)) {
             if (statbuf.st_mtime != thread->files[x].modified) {
 
-                /*
-                 * ap_rprintf(thread->r,"Deleted out-of-date compiled version at index %u", x);
-                 */
+                
+                 if (PLUA_DEBUG) ap_rprintf(thread->r,"Deleted out-of-date compiled version at index %u", x);
+                
                 memset(thread->files[x].filename, 0, 512);
                 luaL_unref(thread->state, LUA_REGISTRYINDEX, thread->files[x].refindex);
                 break;
             } else {
 
                 
-//                 ap_rprintf(thread->r,"Found usable compiled version at index %u", x);
+                 if (PLUA_DEBUG) ap_rprintf(thread->r,"Found usable compiled version at index %u", x);
                 
                 found = thread->files[x].refindex;
                 return (found);
@@ -1087,7 +1088,7 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                 x = luaL_ref(thread->state, LUA_REGISTRYINDEX);
 
                 
-                //  ap_rprintf(thread->r,"Pushed the string from %s onto the registry at index %u<br/>", filename, x);
+                if (PLUA_DEBUG)   ap_rprintf(thread->r,"Pushed the string from %s onto the registry at index %u<br/>", filename, x);
                   
                  
                 for (y = 0; y < LUA_FILES; y++) {
@@ -1098,9 +1099,9 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                         foundSlot = 1;
                         thread->youngest = y;
 
-                        /*
-                         * ap_rprintf(thread->r,"Pushed the into the file list at index %u<br/>", y);
-                         */
+                        
+                        if (PLUA_DEBUG)  ap_rprintf(thread->r,"Pushed the into the file list at index %u<br/>", y);
+                         
                         break;
                     }
                 }
@@ -1187,9 +1188,8 @@ static int plua_handler(request_rec *r) {
                 if (l->typeSet == 0) ap_set_content_type(r, "text/html;charset=ascii");
                 rc = l->returnCode;
 
-                /*
-                 * ap_rprintf(r, "<b>Compiled and ran fine from index %u</b>", rc);
-                 */
+                if (PLUA_DEBUG)  ap_rprintf(r, "<b>Compiled and ran fine from index %u</b>", rc);
+                 
             }
         }
 
