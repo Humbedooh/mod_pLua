@@ -27,7 +27,7 @@
         #define	R_OK		0x04	/* test for read permission */
 #endif
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        15
+#define PLUA_VERSION        16
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -1097,9 +1097,6 @@ static int plua_handler(request_rec *r) {
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
 
-    fprintf(stderr, "A call was made to mod_plua!\r\n");
-    fflush(stderr);
-
     if (stat(r->filename, &statbuf) == -1) exists = 0;
     else if (statbuf.st_mode & 0x00400000)
         exists = 0;
@@ -1191,8 +1188,6 @@ static int plua_handler(request_rec *r) {
  =======================================================================================================================
  */
 static void register_hooks(apr_pool_t *pool) {
-    fprintf(stderr, "mod_plua.so loaded!\r\n");
-    fflush(stderr);
     module_init();
     ap_hook_handler(plua_handler, NULL, NULL, APR_HOOK_LAST);
 }

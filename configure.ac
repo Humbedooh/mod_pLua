@@ -13,12 +13,15 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
 CFLAGS="$my_save_cflags"
 AC_SUBST([AM_CFLAGS])
 
-PKG_CHECK_MODULES(LUA, luajit >= 1.0.0)
+LUALIB="lua5.1"
+AC_ARG_ENABLE(luajit,
+  [  --with-luajit          compile with LuaJIT @<:@default=no@:>@],,
+  LUALIB="luajit-5.1")
+
 PKG_CHECK_MODULES(APR, apr-1 >= 1.3)
-AC_CHECK_LIB(luajit-5.1, luaL_newstate)
+AC_CHECK_LIB("$LUALIB", luaL_newstate)
 AC_CHECK_LIB(apr-1, ap_hook_handler)
-AC_CHECK_LIB(libc, clock_gettime)
-AC_CHECK_LIB(libc, gettimeofday)
+AC_CHECK_LIB(rt, clock_gettime, have_clock_gettime=yes);
 
 AC_PROG_RANLIB
 AC_CONFIG_FILES(Makefile)
