@@ -33,7 +33,7 @@
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
 #define MAX_MULTIPLES       25
-#define PLUA_DEBUG 1
+#define PLUA_DEBUG 0
 static int  LUA_STATES = 50;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 200;    /* Number of files to keep cached */
@@ -1043,14 +1043,16 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
 
     stat(filename, &statbuf);
     for (x = 0; x < LUA_FILES; x++) {
-        if (PLUA_DEBUG) ap_rprintf(thread->r, "Checking: %s &lt;=&gt; %s ?<br/>", thread->files[x].filename, filename);
+        if (PLUA_DEBUG) { 
+            if (strlen(thread->files[x].filename)) ap_rprintf(thread->r, "Checking: %s <=> %s ?<br/>", thread->files[x].filename, filename);
+        }
         if (!strcmp(thread->files[x].filename, filename)) {
             
             if (statbuf.st_mtime != thread->files[x].modified) {
 
                  if (PLUA_DEBUG) ap_rprintf(thread->r,"Deleted out-of-date compiled version at index %u", x);
                 
-                memset(thread->files[x].filename, 0, 512);
+                memset(thread->files[x].filename, 0, 256);
                 luaL_unref(thread->state, LUA_REGISTRYINDEX, thread->files[x].refindex);
                 break;
             } else {
