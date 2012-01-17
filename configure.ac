@@ -15,15 +15,15 @@ AC_SUBST([AM_CFLAGS])
 
 LUALIB="lua5.1"
 AC_ARG_ENABLE(luajit,
-  [  --with-luajit          compile with LuaJIT @<:@default=no@:>@],,
-  with_luajit="no")
+  [  --with-luajit          compile with LuaJIT @<:@default=yes@:>@],,
+  with_luajit=yes)
 if test "x$with_luajit" = "xyes"; then
 	LUALIB="luajit-5.1"
 fi
 
 PKG_CHECK_MODULES(APR, apr-1 >= 1.3)
-AC_CHECK_LIB("$LUALIB", luaL_newstate)
-AC_CHECK_LIB(apr-1, ap_hook_handler)
+AC_CHECK_LIB($LUALIB, luaL_newstate)
+AC_CHECK_LIB([apr-1], ap_hook_handler)
 AC_CHECK_LIB(rt, clock_gettime, have_clock_gettime=yes)
 
 AC_PROG_RANLIB
