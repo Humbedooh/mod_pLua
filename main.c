@@ -1044,9 +1044,9 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
     stat(filename, &statbuf);
     for (x = 0; x < LUA_FILES; x++) {
         if (!strcmp(thread->files[x].filename, filename)) {
+            if (PLUA_DEBUG) ap_rprintf("Checking: %s &lt;=&gt; %s ?<br/>", thread->files[x].filename, filename);
             if (statbuf.st_mtime != thread->files[x].modified) {
 
-                
                  if (PLUA_DEBUG) ap_rprintf(thread->r,"Deleted out-of-date compiled version at index %u", x);
                 
                 memset(thread->files[x].filename, 0, 512);
@@ -1117,6 +1117,7 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                     strcpy(thread->files[y].filename, filename);
                     thread->files[y].modified = statbuf.st_mtime;
                     thread->files[y].refindex = x;
+                    if (PLUA_DEBUG)  ap_rprintf(thread->r,"Pushed the into the file list at index %u, replacing an old file<br/>", y);
                 }
 
                 return (x);
