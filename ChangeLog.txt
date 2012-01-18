@@ -1,5 +1,7 @@
 0.16:
 - Changed formdata structs to be allocated by APR instead of hardcoded
+- mod_plua will now change the current working directory to that of the file being run
+- Working-Directory is now listed as one of the key/value pairs in getEnv()
 
 0.15:
 - Added include(filename) for including other plua scripts or HTML content

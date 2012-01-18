@@ -12,7 +12,9 @@
 #   include <httpd.h>
 #   include <http_protocol.h>
 #   include <http_config.h>
+#   include <apr_dbd.h>
 #else
+#   include <apr-1.0/apr_dbd.h>
 #   include <apache2/httpd.h>
 #   include <apache2/http_protocol.h>
 #   include <apache2/http_config.h>
@@ -28,7 +30,7 @@
         #define	R_OK		0x04	/* test for read permission */
 #endif
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        16
+#define PLUA_VERSION        17
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -86,6 +88,22 @@ static void plua_print_error(lua_thread* thread, const char* type) {
     ap_set_content_type(thread->r, "text/html;charset=ascii");
     ap_rprintf(thread->r, "<h2>%s:</h2><pre>%s</pre>", type, errX ? errX : err);
 }
+
+char* getPWD(lua_thread* thread) {
+    size_t x,y,z;
+    char* pwd = (char*) apr_pcalloc(thread->r->pool, strlen(thread->r->filename)+1);
+    if (pwd) {
+        strcpy(pwd, thread->r->filename);
+        y = strlen(pwd);
+        z = 0;
+        for (x = 0; x < y; x++) {
+            if (pwd[x] == '/' || pwd[x] == '\\') z = x;
+        }
+        if (z) pwd[z] = 0;
+        return pwd;
+    }
+    else return 0;
+}
 /*
  =======================================================================================================================
  =======================================================================================================================
@@ -106,6 +124,149 @@ static int lua_fileexists(lua_State *L) {
 #endif
     else lua_pushboolean(L, 0);
     return (1);
+}
+
+typedef struct {
+    apr_dbd_t* handle;
+    const apr_dbd_driver_t* driver;
+} dbStruct;
+
+static int lua_dbclose(lua_State *L) {
+    dbStruct* db = 0;
+    apr_status_t rc = 0;
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_rawgeti(L, 1, 0);
+    luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
+    db = (dbStruct *) lua_topointer(L, -1);
+    if (db) {
+        rc = apr_dbd_close(db->driver, db->handle);
+    }
+    lua_pushnumber(L, rc);
+    return 1;
+}
+
+static int lua_dbdo(lua_State *L) {
+    dbStruct* db = 0;
+    apr_status_t rc = 0;
+    lua_thread  *thread;
+    int x = 0;
+    const char* statement;
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
+    thread = (lua_thread *) lua_touserdata(L, -1);
+    if (thread) {
+        luaL_checktype(L, 1, LUA_TTABLE);
+        luaL_checktype(L, 2, LUA_TSTRING);
+        statement = lua_tostring(L, 2);
+        lua_rawgeti(L, 1, 0);
+        luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
+        db = (dbStruct *) lua_topointer(L, -1);
+        if (db) {
+            rc = apr_dbd_query(db->driver, db->handle, &x, statement);
+        }
+        else {
+            rc = 0;
+            x = -1;
+        }
+        if (rc == APR_SUCCESS) lua_pushnumber(L, x);
+        else lua_pushboolean(L, 0);
+        return 1;
+    }   
+    return 0;
+}
+
+static int lua_dbquery(lua_State *L) {
+    dbStruct* db = 0;
+    apr_status_t rc = 0;
+    lua_thread  *thread;
+    const char* statement;
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
+    thread = (lua_thread *) lua_touserdata(L, -1);
+    if (thread) {
+        luaL_checktype(L, 1, LUA_TTABLE);
+        luaL_checktype(L, 2, LUA_TSTRING);
+        statement = lua_tostring(L, 2);
+        lua_rawgeti(L, 1, 0);
+        luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
+        db = (dbStruct *) lua_topointer(L, -1);
+        if (db) {
+            int rows, cols;
+            apr_dbd_results_t* results = 0;
+            rc = apr_dbd_select(db->driver, thread->r->pool, db->handle, &results, statement, 0);
+            if (rc == APR_SUCCESS) {
+                const char* entry;
+                apr_dbd_row_t* row = 0;
+                int x;
+                cols = apr_dbd_num_cols(db->driver, results);
+                lua_newtable(L);
+                if (cols > 0) {
+                    for (rows = 1; apr_dbd_get_row(db->driver,thread->r->pool, results, &row, rows) != -1; rows++) {
+                        lua_pushinteger(L, rows);
+                        lua_newtable(L);
+                        for (x = 0; x < cols; x++) {
+                            entry = apr_dbd_get_entry(db->driver, row, x);
+                            if (entry) {
+                                    lua_pushinteger(L, x+1);
+                                    lua_pushstring(L, entry);
+                                    lua_rawset(L, -3);
+                            }
+                        }
+                        lua_rawset(L, -3);
+                    }
+                    return 1;
+                }
+            }
+        }
+        lua_pushboolean(L, 0);
+        return 1;
+    }   
+    return 0;
+}
+
+static const luaL_reg   db_methods[] = { { "close", lua_dbclose }, { "query", lua_dbquery }, { "run", lua_dbdo }, { 0, 0 } };
+
+static int lua_dbopen(lua_State *L) {
+    /*~~~~~~~~~~~~~~~~*/
+    const char *type;
+    const char  *arguments;
+    lua_thread  *thread;
+    dbStruct* db = (dbStruct*) calloc(1, sizeof(dbStruct));
+    /*~~~~~~~~~~~~~~~~*/
+    apr_status_t rc = 0;
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
+    thread = (lua_thread *) lua_touserdata(L, -1);
+    if (thread) {
+        luaL_checktype(L, 1, LUA_TSTRING);
+        luaL_checktype(L, 2, LUA_TSTRING);
+        type = lua_tostring(L, 1);
+        arguments = lua_tostring(L, 2);
+        lua_settop(L, 0);
+        apr_dbd_init(thread->r->pool);
+        rc = apr_dbd_get_driver(thread->r->pool, type, &db->driver);
+        if (rc == APR_SUCCESS) {
+                rc = apr_dbd_open(db->driver, thread->r->pool, arguments, &db->handle);
+                if (rc == APR_SUCCESS) {
+                    lua_newtable(L);
+                    luaL_register(L, NULL, db_methods);
+                    lua_pushlightuserdata(L, db);
+                    lua_rawseti(L, -2, 0);
+                    return 1;
+                }
+                else {
+                    lua_pushnil(thread->state);
+                    return 1;
+                }
+            lua_pushboolean(thread->state, 0);
+            return 1;
+        }
+        else {
+            lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
+            plua_print_error(thread, "Database error");
+            lua_pushnil(thread->state);
+            return 1;
+        }
+    }
+    lua_pushnil(thread->state);
+    return 1;
 }
 
 /*
@@ -250,6 +411,7 @@ static int lua_getEnv(lua_State *L) {
 
         /*~~~~~~~~~~~~~~~~~~~~~~~*/
         apr_table_entry_t   *e = 0;
+        char* pwd = getPWD(thread);
         /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
         lua_newtable(thread->state);
@@ -298,12 +460,18 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Request-Method");
         lua_pushstring(thread->state, thread->r->method);
         lua_rawset(L, -3);
-		lua_pushstring(thread->state, "Filename");
-		lua_pushstring(thread->state, thread->r->filename);
+        lua_pushstring(thread->state, "Filename");
+        lua_pushstring(thread->state, thread->r->filename);
         lua_rawset(L, -3);
-		lua_pushstring(thread->state, "URI");
-		lua_pushstring(thread->state, thread->r->uri);
+        lua_pushstring(thread->state, "URI");
+        lua_pushstring(thread->state, thread->r->uri);
         lua_rawset(L, -3);
+        if (pwd) {
+                lua_pushstring(thread->state, "Working-Directory");
+                lua_pushstring(thread->state, pwd);
+                lua_rawset(L, -3);
+        }
+        
         return (1);
     }
 
@@ -655,7 +823,7 @@ static int lua_includeFile(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~*/
     const char  *filename;
     lua_thread  *thread = 0;
- 
+    
     /*~~~~~~~~~~~~~~~~~~~~*/
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
@@ -664,7 +832,6 @@ static int lua_includeFile(lua_State *L) {
          struct stat fileinfo;
          int rc = 0;
         /*~~~~~~~~~~~~~~~~~~*/
-
         luaL_checktype(L, 1, LUA_TSTRING);
         filename = lua_tostring(L, 1);
         lua_settop(L, 0);
@@ -705,6 +872,7 @@ static const luaL_reg   Global_methods[] =
     { "compileTime", lua_compileTime },
     { "setReturnCode", lua_setReturnCode },
     { "include", lua_includeFile },
+    { "dbopen", lua_dbopen }, 
     { 0, 0 }
 };
 
@@ -723,7 +891,8 @@ static int module_lua_panic(lua_State *L) {
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
         el = lua_tostring(L, 1);
-        ap_rprintf(thread->r, "Lua PANIC: %s\n", el);
+        ap_set_content_type(thread->r, "text/html;charset=ascii");
+        ap_rprintf(thread->r, "Lua PANIC: %s\r\n", el);
     } else {
         el = lua_tostring(L, 1);
         printf("Lua PANIC: %s\n", el);
@@ -731,6 +900,7 @@ static int module_lua_panic(lua_State *L) {
 
     lua_settop(L, 0);
     return (0);
+    
 }
 
 /*
@@ -948,9 +1118,9 @@ int lua_parse_file(lua_thread *thread, char *input) {
             X = matchStart[0];
             matchStart[0] = 0;
 #ifdef _WIN32
-            _snprintf_c(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
+            _snprintf_c(test, matchStart - input + 14, "echo([=[%s]=]);", input + at);
 #else
-            snprintf(test, matchStart - input + 14, "echo([=[%s]=]);\0", input + at);
+            snprintf(test, matchStart - input + 14, "echo([=[%s]=]);", input + at);
 #endif
             matchStart[0] = X;
 
@@ -1008,9 +1178,9 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 #ifdef _WIN32
-                _snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
+                _snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);", input + at);
 #else
-                snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);\0", input + at);
+                snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);", input + at);
 #endif
                 at = inputSize;
                 lua_add_code(&output, test);
@@ -1162,8 +1332,14 @@ static int plua_handler(request_rec *r) {
         lua_thread  *l = lua_acquire_state();
         lua_State   *L = l->state;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
         l->r = r;
+        
+#ifndef _WIN32
+        chdir(getPWD(l));
+#else
+        SetCurrentDirectoryA(getPWD(l));
+#endif
+        
         l->returnCode = OK;
         lua_pushlightuserdata(L, l);
         x = luaL_ref(L, LUA_REGISTRYINDEX);
