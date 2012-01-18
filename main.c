@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        18
+#define PLUA_VERSION        19
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -91,6 +91,12 @@ typedef struct
     const char  *values[MAX_MULTIPLES];
 } formdata;
 static lua_states   Lua_states;
+
+typedef struct
+{
+    apr_dbd_t               *handle;
+    const apr_dbd_driver_t  *driver;
+} dbStruct;
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -425,11 +431,41 @@ static int lua_fileexists(lua_State *L) {
     return (1);
 }
 
-typedef struct
-{
-    apr_dbd_t               *handle;
-    const apr_dbd_driver_t  *driver;
-} dbStruct;
+
+static int lua_unlink(lua_State *L) {
+
+    /*~~~~~~~~~~~~*/
+    const char  *filename;
+    int rc = 0;
+    /*~~~~~~~~~~~~*/
+
+    luaL_checktype(L, 1, LUA_TSTRING);
+    filename = lua_tostring(L, 1);
+    lua_settop(L, 0);
+    rc = unlink(filename);
+    if (rc) lua_pushboolean(L, 0);
+    else lua_pushboolean(L, 1);
+    return (1);
+}
+
+
+static int lua_rename(lua_State *L) {
+
+    /*~~~~~~~~~~~~*/
+    const char  *filename, *newfilename;
+    int rc = 0;
+    /*~~~~~~~~~~~~*/
+
+    luaL_checktype(L, 1, LUA_TSTRING);
+    luaL_checktype(L, 2, LUA_TSTRING);
+    filename = lua_tostring(L, 1);
+    newfilename = lua_tostring(L, 1);
+    lua_settop(L, 0);
+    rc = rename(filename, newfilename);
+    if (rc) lua_pushboolean(L, 0);
+    else lua_pushboolean(L, 1);
+    return (1);
+}
 
 /*
  =======================================================================================================================
@@ -1280,7 +1316,7 @@ static int lua_includeFile(lua_State *L) {
     return (1);
 }
 
-static const luaL_reg   File_methods[] = { { "stat", lua_fileinfo }, { "exists", lua_fileexists }, { 0, 0 } };
+static const luaL_reg   File_methods[] = { {"rename", lua_rename}, {"unlink", lua_unlink}, { "stat", lua_fileinfo }, { "exists", lua_fileexists }, { 0, 0 } };
 static const luaL_reg   Global_methods[] =
 {
     { "echo", lua_echo },
