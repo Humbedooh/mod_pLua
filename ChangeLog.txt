@@ -1,3 +1,7 @@
+0.18:
+- Moved around code Change hook calls so all plua structs can be created using apr_pcalloc and use apache's memory pool. 
+- Added db:escape(string) for escaping SQL data
+
 0.17:
 - Added dbopen(dbType, parameters) for handling database connections via APR_DBD
 
