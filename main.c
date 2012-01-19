@@ -47,6 +47,7 @@
 #include <lauxlib.h>
 #include <pthread.h>
 #include <time.h>
+#   include <stdint.h>
 #ifndef R_OK
 #   define R_OK    0x04 /* test for read permission */
 #endif
@@ -780,7 +781,7 @@ char *plua_sha256(const char *digest) {
  =======================================================================================================================
  =======================================================================================================================
  */
-inline char value(char c) {
+static char value(char c) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     const char  *p = strchr(b64_table, c);
