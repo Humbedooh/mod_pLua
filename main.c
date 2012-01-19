@@ -149,6 +149,8 @@ static int module_lua_panic(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_add_code(char **buffer, const char *string):
+ * Adds chunks of code to the final buffer, expanding it in memory as it grows.
  =======================================================================================================================
  */
 void lua_add_code(char **buffer, const char *string) {
@@ -157,7 +159,7 @@ void lua_add_code(char **buffer, const char *string) {
     char    *b = *buffer;
     /*~~~~~~~~~~~~~~~~~*/
 
-    if (!string) return;
+    if (!string || !strlen(string)) return;
     if (!b) {
         b = (char *) calloc(1, strlen(string) + 1);
         strcpy(b, string);
@@ -179,6 +181,9 @@ void lua_add_code(char **buffer, const char *string) {
 
 /*
  =======================================================================================================================
+ * lua_parse_file(lua_thread *thread, char *input):
+ * Splits up the string given by input and looks for <? ... ?> segments.
+ * These and their surrounding HTML code is then added, bit by bit, to the final code string.
  =======================================================================================================================
  */
 int lua_parse_file(lua_thread *thread, char *input) {
@@ -197,25 +202,27 @@ int lua_parse_file(lua_thread *thread, char *input) {
         matchStart = strstr((char *) input + at, "<?");
         if (matchStart) {
 
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-            char    *test = (char *) calloc(1, matchStart - input + at + 20);
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
             /* Add any preceding raw html as an echo */
-            X = matchStart[0];
-            matchStart[0] = 0;
+            if (matchStart - input > 0) {
+                /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+                char    *test = (char *) calloc(1, matchStart - input + at + 20);
+                /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+                
+                X = matchStart[0];
+                matchStart[0] = 0;
 #ifdef _WIN32
-            _snprintf_c(test, matchStart - input + 14, "echo([=[%s]=]);", input + at);
+                _snprintf_c(test, matchStart - input + 14, "echo([=[%s]=]);", input + at);
 #else
-            snprintf(test, matchStart - input + 14, "echo([=[%s]=]);", input + at);
+                snprintf(test, matchStart - input + 14, "echo([=[%s]=]);", input + at);
 #endif
-            matchStart[0] = X;
+                matchStart[0] = X;
 
-            /*
-             * ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
-             */
-            lua_add_code(&output, test);
-            free(test);
+                /*
+                * ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
+                */
+                lua_add_code(&output, test);
+                free(test);
+            }
 
             /* Find the beginning and end of the plua chunk */
             at = (matchStart - input) + 2;
@@ -283,9 +290,14 @@ int lua_parse_file(lua_thread *thread, char *input) {
 
 /*
  =======================================================================================================================
+ * lua_compile_file(lua_thread *thread, const char *filename, struct stat *statbuf):
+ * Compiles the filename given.
+ * It first checks if the file is available in the cache, and if so, hasn't been modified on disk since.
+ * If available, it returns the handle (reference number) do the precompiled code, otherwise it parses and
+ * compiles the new code and stores it in the cache.
  =======================================================================================================================
  */
-int lua_compile_file(lua_thread *thread, const char *filename) {
+int lua_compile_file(lua_thread *thread, const char *filename, struct stat *statbuf) {
 
     /*~~~~~~~~~~~~~~~~~~~*/
     FILE        *input = 0;
@@ -295,22 +307,26 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
     int         x = 0,
                 y = 0;
     int         found = 0;
-    struct stat statbuf;
     /*~~~~~~~~~~~~~~~~~~~*/
 
-    stat(filename, &statbuf);
+    
+    // For each file on record, check if the names match
     for (x = 0; x < LUA_FILES; x++) {
         if (PLUA_DEBUG) {
             if (strlen(thread->files[x].filename))
                 ap_rprintf(thread->r, "Checking: %s <=> %s ?<br/>", thread->files[x].filename, filename);
         }
-
+        // Do we have a match?
         if (!strcmp(thread->files[x].filename, filename)) {
-            if (statbuf.st_mtime != thread->files[x].modified) {
+            
+            // Is the cached file out of date?
+            if (statbuf->st_mtime != thread->files[x].modified) {
                 if (PLUA_DEBUG) ap_rprintf(thread->r, "Deleted out-of-date compiled version at index %u", x);
                 memset(thread->files[x].filename, 0, 256);
                 luaL_unref(thread->state, LUA_REGISTRYINDEX, thread->files[x].refindex);
                 break;
+            
+            // Did we find a useable copy?
             } else {
                 if (PLUA_DEBUG) ap_rprintf(thread->r, "Found usable compiled version at index %u", x);
                 found = thread->files[x].refindex;
@@ -319,7 +335,9 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
         }
     }
 
+    // If no useable copy is found, preprocess and compile the file from scratch.
     if (!found) {
+        // Straight forward; Read the file.
         input = fopen(filename, "r");
         if (input) {
             fseek(input, 0, SEEK_END);
@@ -329,24 +347,32 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
             iBuffer = (char *) calloc(1, iSize + 1);
             iSize = fread(iBuffer, iSize, 1, input);
             fclose(input);
+            
+            // Hand the file data over to lua_parse_file and preprocess the html and code.
             rc = lua_parse_file(thread, iBuffer);
             free(iBuffer);
+            
+            // Did we encounter a syntax error while parsing? (I think not, how could we?)
             if (rc == LUA_ERRSYNTAX) {
                 return (-2);
             }
 
+            // Save the compiled binary string in the Lua registry for later use.
             if (!rc) {
 
                 /*~~~~~~~~~~~~~~*/
                 int foundSlot = 0;
                 /*~~~~~~~~~~~~~~*/
 
+                // Push the binary chunk onto the Lua registry and save the reference
                 x = luaL_ref(thread->state, LUA_REGISTRYINDEX);
                 if (PLUA_DEBUG) ap_rprintf(thread->r, "Pushed the string from %s onto the registry at index %u<br/>", filename, x);
+                
+                // Look for an empty slot in our file cache to save this reference.
                 for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
                         strcpy(thread->files[y].filename, filename);
-                        thread->files[y].modified = statbuf.st_mtime;
+                        thread->files[y].modified = statbuf->st_mtime;
                         thread->files[y].refindex = x;
                         foundSlot = 1;
                         thread->youngest = y;
@@ -355,20 +381,24 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
                     }
                 }
 
+                // If no empty spots, use the oldest spot for this new chunk.
                 if (!foundSlot) {
-
                     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-                    /* All slots are full, use the oldest slot for the new file */
                     int y = (thread->youngest + 1) % LUA_FILES;
                     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+                    // Unref whatever was in this slot.
+                    luaL_unref(thread->state, LUA_REGISTRYINDEX, thread->files[y].refindex);
+                    
+                    // Update the slot with new info.
                     thread->youngest = y;
                     strcpy(thread->files[y].filename, filename);
-                    thread->files[y].modified = statbuf.st_mtime;
+                    thread->files[y].modified = statbuf->st_mtime;
                     thread->files[y].refindex = x;
                     if (PLUA_DEBUG) ap_rprintf(thread->r, "Pushed the into the file list at index %u, replacing an old file<br/>", y);
                 }
 
+                // Return the reference number
                 return (x);
             }
         } else return (-1);
@@ -379,6 +409,8 @@ int lua_compile_file(lua_thread *thread, const char *filename) {
 
 /*
  =======================================================================================================================
+ * getPWD(lua_thread *thread):
+ * Gets the current working directory of the requested script.
  =======================================================================================================================
  */
 char *getPWD(lua_thread *thread) {
@@ -1298,7 +1330,7 @@ static int lua_includeFile(lua_State *L) {
         lua_settop(L, 0);
         if (stat(filename, &fileinfo) == -1) lua_pushboolean(L, 0);
         else {
-            rc = lua_compile_file(thread, filename);
+            rc = lua_compile_file(thread, filename, &fileinfo);
             if (rc > 0) {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
                 rc = lua_pcall(L, 0, LUA_MULTRET, 0);
@@ -1525,7 +1557,7 @@ static int plua_handler(request_rec *r) {
         x = luaL_ref(L, LUA_REGISTRYINDEX);
         
         // Call the compiler function and let it either compile or read from cache.
-        rc = lua_compile_file(l, r->filename);
+        rc = lua_compile_file(l, r->filename, &statbuf);
         
         // Compiler error?
         if (rc < 1) {

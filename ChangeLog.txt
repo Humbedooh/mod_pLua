@@ -1,3 +1,10 @@
+0.19:
+- Added file.rename(oldfile,newfile) for moving files around.
+- Added file.unlink(filename) for deleting files
+- Null-data preceding code blocks is no longer added as an empty echo
+- Old cache entries are now properly dereferenced when being replaced by new entries
+- File statistics are now being re-used in the compiler, giving a whopping 2% speed boost.
+
 0.18:
 - Moved around code Change hook calls so all plua structs can be created using apr_pcalloc and use apache's memory pool. 
 - Added db:escape(string) for escaping SQL data
