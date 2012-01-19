@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        19
+#define PLUA_VERSION        20
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -926,6 +926,15 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "URI");
         lua_pushstring(thread->state, thread->r->uri);
         lua_rawset(L, -3);
+        lua_pushstring(thread->state, "Unparsed-URI");
+        lua_pushstring(thread->state, thread->r->unparsed_uri);
+        lua_rawset(L, -3);
+        lua_pushstring(thread->state, "Request");
+        lua_pushstring(thread->state, thread->r->the_request);
+        lua_rawset(L, -3);
+        lua_pushstring(thread->state, "Path-Info");
+        lua_pushstring(thread->state, thread->r->path_info);
+        lua_rawset(L, -3);
         if (pwd) {
             lua_pushstring(thread->state, "Working-Directory");
             lua_pushstring(thread->state, pwd);
@@ -1117,6 +1126,7 @@ static int parse_urlencoded(lua_thread *thread, const char *data) {
     formdata    *form = apr_pcalloc(thread->r->pool, sizeof(formdata) * MAX_VARS);
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+    if (!data || !strlen(data)) return 0;
     i = 0;
     while (*data && (val = ap_getword(thread->r->pool, &data, '&'))) {
         i++;
@@ -1300,8 +1310,7 @@ static int lua_parse_get(lua_State *L) {
     if (thread) {
         lua_newtable(thread->state);
         data = thread->r->args;
-        parse_urlencoded(thread, data);
-        return (1);
+        return parse_urlencoded(thread, data);
     } else return (0);
 }
 
