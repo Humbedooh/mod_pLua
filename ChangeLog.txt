@@ -1,3 +1,9 @@
+0.20:
+- Added Unparsed-URI, Request and Path-Info to the environment table
+- Fixed an issue where ParseGet() would return unknown results if passed an empty string
+- Added string.encode64() and string.decode64() for handling Base64 encoding on the fly
+- Added string.SHA256() for using SHA256 hashes
+
 0.19:
 - Added file.rename(oldfile,newfile) for moving files around.
 - Added file.unlink(filename) for deleting files
