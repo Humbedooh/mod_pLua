@@ -964,7 +964,7 @@ char *plua_encode_base64(const char *src, size_t len) {
     size_t              olen = (len * (4 / 3)) + 1024;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    output = malloc(olen);
+    output = calloc(1,olen);
     state.step = 1;
     state.result = 0;
     state.stepcount = 0;
