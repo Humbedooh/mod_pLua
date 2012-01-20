@@ -37,7 +37,7 @@
 #   include <http_config.h>
 #   include <apr_dbd.h>
 #else
-#   include <apr - 1.0/apr_dbd.h>
+#   include <apr-1.0/apr_dbd.h>
 #   include <apache2/httpd.h>
 #   include <apache2/http_protocol.h>
 #   include <apache2/http_config.h>
@@ -987,6 +987,7 @@ static int lua_sha256(lua_State *L) {
     /*~~~~~~~~~~~~~~~~*/
     const char  *string;
     char        *output;
+    lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
 
     luaL_checktype(L, 1, LUA_TSTRING);
@@ -1013,6 +1014,7 @@ static int lua_b64dec(lua_State *L) {
     char        *output;
     size_t      ilen,
                 olen;
+    lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
 
     luaL_checktype(L, 1, LUA_TSTRING);
@@ -1046,8 +1048,9 @@ static int lua_b64enc(lua_State *L) {
     const char  *string;
     char        *output;
     size_t      ilen;
+    lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
-
+    
     luaL_checktype(L, 1, LUA_TSTRING);
     string = lua_tostring(L, 1);
     ilen = strlen(string);
@@ -1193,7 +1196,7 @@ static int lua_dbdo(lua_State *L) {
             const char  *err = apr_dbd_error(db->driver, db->handle, rc);
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-            lua_pushboolean(L, 0);
+            lua_pushnil(L);
             if (err) {
                 lua_pushstring(L, err);
                 return (2);
@@ -1306,7 +1309,7 @@ static int lua_dbquery(lua_State *L) {
                 const char  *err = apr_dbd_error(db->driver, db->handle, rc);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-                lua_pushboolean(L, 0);
+                lua_pushnil(L);
                 if (err) {
                     lua_pushstring(L, err);
                     return (2);
@@ -1339,6 +1342,7 @@ static int lua_dbopen(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     const char      *type;
     const char      *arguments;
+    const char      *error = 0;
     lua_thread      *thread;
     dbStruct        *db = (dbStruct *) calloc(1, sizeof(dbStruct));
     apr_status_t    rc = 0;
@@ -1355,7 +1359,7 @@ static int lua_dbopen(lua_State *L) {
         apr_dbd_init(thread->r->pool);
         rc = apr_dbd_get_driver(thread->r->pool, type, &db->driver);
         if (rc == APR_SUCCESS) {
-            rc = apr_dbd_open(db->driver, thread->r->pool, arguments, &db->handle);
+            rc = apr_dbd_open_ex(db->driver, thread->r->pool, arguments, &db->handle, &error);
             if (rc == APR_SUCCESS) {
                 lua_newtable(L);
                 luaL_register(L, NULL, db_methods);
@@ -1363,17 +1367,21 @@ static int lua_dbopen(lua_State *L) {
                 lua_rawseti(L, -2, 0);
                 return (1);
             } else {
-                lua_pushnil(thread->state);
-                return (1);
+
+                lua_pushnil(L);
+                if (error) {
+                    lua_pushstring(L, error);
+                    return (2);
+                }
+                return 1;
             }
 
             lua_pushboolean(thread->state, 0);
             return (1);
         } else {
-            lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
-            plua_print_error(thread, "Database error");
             lua_pushnil(thread->state);
-            return (1);
+            lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
+            return (2);
         }
     }
 
