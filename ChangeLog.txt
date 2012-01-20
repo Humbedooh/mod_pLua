@@ -1,3 +1,7 @@
+0.21:
+- dbopen, dbopen:run and dbopen:query will now return (nil, errormessage) on failure.
+- Moved mallocs/callocs from crypt functions over to apr_pcalloc
+
 0.20:
 - Added Unparsed-URI, Request and Path-Info to the environment table
 - Fixed an issue where ParseGet() would return unknown results if passed an empty string
