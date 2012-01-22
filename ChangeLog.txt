@@ -2,6 +2,7 @@
 - Added some descriptions to main.c
 - Added a few more environment keys/values
 - Changed the mod_plua test page to include encryption and database tests
+- Calling dbopen with an empty connection string will now only test if the dbd driver exists
 - Database handles are now persistent through sessions untill closed or GC'ed
 
 0.21:
