@@ -1174,16 +1174,27 @@ static int lua_dbclose(lua_State *L) {
 static int lua_dbhandle(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~*/
     dbStruct        *db = 0;
+    apr_status_t    rc = 0;
+    lua_thread* thread = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
-    luaL_checktype(L, 1, LUA_TTABLE);
-    lua_rawgeti(L, 1, 0);
-    luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
-    db = (dbStruct *) lua_topointer(L, -1);
-    if (db && db->alive) {
-        lua_pushboolean(L, 1);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
+    thread = (lua_thread *) lua_touserdata(L, -1);
+    if (thread) {
+        luaL_checktype(L, 1, LUA_TTABLE);
+        lua_rawgeti(L, 1, 0);
+        luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
+        db = (dbStruct *) lua_topointer(L, -1);
+
+        if (db && db->alive) {
+            rc = apr_dbd_check_conn(db->driver, thread->bigPool, db->handle);
+            if (rc = APR_SUCCESS) {
+                lua_pushboolean(L, 1);
+                return 1;
+            }
+        }
     }
-    else lua_pushboolean(L, 0);
+    lua_pushboolean(L, 0);
     return 1;
 }
 /*
