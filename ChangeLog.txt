@@ -1,5 +1,11 @@
+0.22:
+- Added some descriptions to main.c
+- Added a few more environment keys/values
+- Changed the mod_plua test page to include encryption and database tests
+- Database handles are now persistent through sessions untill closed or GC'ed
+
 0.21:
-- dbopen, dbopen:run and dbopen:query will now return (nil, errormessage) on failure.
+- dbopen, dbopen:run and dbopen:query will now return (nil, errormessage) on failure
 - Moved mallocs/callocs from crypt functions over to apr_pcalloc
 
 0.20:
@@ -13,10 +19,10 @@
 - Added file.unlink(filename) for deleting files
 - Null-data preceding code blocks is no longer added as an empty echo
 - Old cache entries are now properly dereferenced when being replaced by new entries
-- File statistics are now being re-used in the compiler, giving a whopping 2% speed boost.
+- File statistics are now being re-used in the compiler, giving a whopping 2% speed boost
 
 0.18:
-- Moved around code Change hook calls so all plua structs can be created using apr_pcalloc and use apache's memory pool. 
+- Moved around code Change hook calls so all plua structs can be created using apr_pcalloc and use apache's memory pool
 - Added db:escape(string) for escaping SQL data
 
 0.17:

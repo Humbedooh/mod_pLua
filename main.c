@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        21
+#define PLUA_VERSION        22
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -73,6 +73,7 @@ typedef struct
     int             working;
     int             sessions;
     request_rec     *r;
+    apr_pool_t      *bigPool;
     lua_State       *state;
     int             typeSet;
     int             returnCode;
@@ -97,6 +98,7 @@ typedef struct
 {
     apr_dbd_t               *handle;
     const apr_dbd_driver_t  *driver;
+    int                     alive;
 } dbStruct;
 #ifndef PRIx32
 #   define PRIx32  "x"
@@ -137,6 +139,9 @@ static const char   *plua_error_template = "<h1><img alt=\"\" src=\"data:image/p
 
 /*
  =======================================================================================================================
+ * plua_print_error(lua_thread *thread, const char *type):
+ * Prints out a mod_plua error message of type _type_ to the remote client.
+ * This does not necessarilly halt any ongoing execution of code.
  =======================================================================================================================
  */
 static void plua_print_error(lua_thread *thread, const char *type) {
@@ -159,18 +164,15 @@ static void plua_print_error(lua_thread *thread, const char *type) {
 static int module_lua_panic(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~~~~~*/
-    const char  *el;
     lua_thread  *thread = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
-        el = lua_tostring(L, 1);
-        ap_set_content_type(thread->r, "text/html;charset=ascii");
-        ap_rprintf(thread->r, "Lua PANIC: %s\r\n", el);
+        plua_print_error(thread, "Lua PANIC");
     } else {
-        el = lua_tostring(L, 1);
+        const char *el = lua_tostring(L, 1);
         printf("Lua PANIC: %s\n", el);
     }
 
@@ -213,7 +215,7 @@ void lua_add_code(char **buffer, const char *string) {
 /*
  =======================================================================================================================
     lua_parse_file(lua_thread *thread, char *input): Splits up the string given by input and looks for <? ... ?>
-    segments. These and their surrounding HTML code is then added, bit by bit, to the final code string.
+    segments. These, and their surrounding HTML code, are then added, bit by bit, to the final code string.
  =======================================================================================================================
  */
 int lua_parse_file(lua_thread *thread, char *input) {
@@ -1095,6 +1097,8 @@ static int lua_fileexists(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_unlink(lua_State *L):
+ * file.unlink(filename): Unlinks (deletes) a given file.
  =======================================================================================================================
  */
 static int lua_unlink(lua_State *L) {
@@ -1115,6 +1119,8 @@ static int lua_unlink(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_rename(lua_State *L):
+ * file.rename(oldfile, newfile): Renames/moves a file to a new location.
  =======================================================================================================================
  */
 static int lua_rename(lua_State *L) {
@@ -1138,6 +1144,8 @@ static int lua_rename(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_dbclose(lua_State *L):
+ * db:close(): Closes an open database connection.
  =======================================================================================================================
  */
 static int lua_dbclose(lua_State *L) {
@@ -1151,16 +1159,22 @@ static int lua_dbclose(lua_State *L) {
     lua_rawgeti(L, 1, 0);
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
     db = (dbStruct *) lua_topointer(L, -1);
-    if (db) {
+    if (db && db->alive) {
         rc = apr_dbd_close(db->driver, db->handle);
+        db->driver = 0;
+        db->handle = 0;
+        db->alive = 0;
     }
-
+    lua_settop(L, 0);
     lua_pushnumber(L, rc);
     return (1);
 }
 
 /*
  =======================================================================================================================
+ * lua_dbdo(lua_State *L):
+ * db:run(query): Executes the given database query and returns the number of rows affected.
+ * If an error is encountered, returns nil as the first parameter and the error message as the second.
  =======================================================================================================================
  */
 static int lua_dbdo(lua_State *L) {
@@ -1182,7 +1196,7 @@ static int lua_dbdo(lua_State *L) {
         lua_rawgeti(L, 1, 0);
         luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
         db = (dbStruct *) lua_topointer(L, -1);
-        if (db) {
+        if (db && db->alive) {
             rc = apr_dbd_query(db->driver, db->handle, &x, statement);
         } else {
             rc = 0;
@@ -1211,6 +1225,8 @@ static int lua_dbdo(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_dbescape(lua_State *L):
+ * db:escape(string): Escapes a string for safe use in the given database type.
  =======================================================================================================================
  */
 static int lua_dbescape(lua_State *L) {
@@ -1231,7 +1247,7 @@ static int lua_dbescape(lua_State *L) {
         lua_rawgeti(L, 1, 0);
         luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
         db = (dbStruct *) lua_topointer(L, -1);
-        if (db) {
+        if (db && db->alive) {
             escaped = apr_dbd_escape(db->driver, thread->r->pool, statement, db->handle);
             if (escaped) {
                 lua_pushstring(L, escaped);
@@ -1246,6 +1262,9 @@ static int lua_dbescape(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_dbquery(lua_State *L):
+ * db:query(statement): Queries the database for the given statement and returns the rows/columns found as a table.
+ * * If an error is encountered, returns nil as the first parameter and the error message as the second.
  =======================================================================================================================
  */
 static int lua_dbquery(lua_State *L) {
@@ -1266,7 +1285,7 @@ static int lua_dbquery(lua_State *L) {
         lua_rawgeti(L, 1, 0);
         luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
         db = (dbStruct *) lua_topointer(L, -1);
-        if (db) {
+        if (db && db->alive) {
 
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
             int                 rows,
@@ -1304,7 +1323,7 @@ static int lua_dbquery(lua_State *L) {
                     return (1);
                 }
             } else {
-
+                
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
                 const char  *err = apr_dbd_error(db->driver, db->handle, rc);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
@@ -1330,11 +1349,17 @@ static const luaL_reg   db_methods[] =
     { "close", lua_dbclose },
     { "query", lua_dbquery },
     { "run", lua_dbdo },
+    { "__gc", lua_dbclose},
     { 0, 0 }
 };
 
 /*
  =======================================================================================================================
+ * lua_dbopen(lua_State *L):
+ * dbopen(dbType, dbString): Opens a new connection to a database of type _dbType_ and with the connection parameters
+ * _dbString_. If successful, returns a table with functions for using the database handle.
+ * If an error occurs, returns nil as the first parameter and the error message as the second.
+ * See the APR_DBD for a list of database types and connection strings supported.
  =======================================================================================================================
  */
 static int lua_dbopen(lua_State *L) {
@@ -1344,44 +1369,50 @@ static int lua_dbopen(lua_State *L) {
     const char      *arguments;
     const char      *error = 0;
     lua_thread      *thread;
-    dbStruct        *db = (dbStruct *) calloc(1, sizeof(dbStruct));
+    dbStruct        *db = 0;
     apr_status_t    rc = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
+        db = (dbStruct *) apr_pcalloc(thread->bigPool, sizeof(dbStruct));
+        db->alive = 0;
         luaL_checktype(L, 1, LUA_TSTRING);
         luaL_checktype(L, 2, LUA_TSTRING);
         type = lua_tostring(L, 1);
         arguments = lua_tostring(L, 2);
         lua_settop(L, 0);
         apr_dbd_init(thread->r->pool);
-        rc = apr_dbd_get_driver(thread->r->pool, type, &db->driver);
+        rc = apr_dbd_get_driver(thread->bigPool, type, &db->driver);
         if (rc == APR_SUCCESS) {
-            rc = apr_dbd_open_ex(db->driver, thread->r->pool, arguments, &db->handle, &error);
-            if (rc == APR_SUCCESS) {
-                lua_newtable(L);
-                luaL_register(L, NULL, db_methods);
-                lua_pushlightuserdata(L, db);
-                lua_rawseti(L, -2, 0);
-                return (1);
-            } else {
+            if (strlen(arguments)) {
+                rc = apr_dbd_open_ex(db->driver, thread->bigPool, arguments, &db->handle, &error);
+                if (rc == APR_SUCCESS) {
+                    db->alive = 1;
+                    lua_newtable(L);
+                    luaL_register(L, NULL, db_methods);
+                    lua_pushlightuserdata(L, db);
+                    lua_rawseti(L, -2, 0);
+                    return (1);
+                } else {
 
-                lua_pushnil(L);
-                if (error) {
-                    lua_pushstring(L, error);
-                    return (2);
+                    lua_pushnil(L);
+                    if (error) {
+                        lua_pushstring(L, error);
+                        return (2);
+                    }
+                    return 1;
                 }
-                return 1;
             }
-
-            lua_pushboolean(thread->state, 0);
-            return (1);
+            lua_pushnil(L);
+            lua_pushliteral(L, "No database connection string was specified.");
+            return (2);
         } else {
             lua_pushnil(thread->state);
             lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
-            return (2);
+            lua_pushinteger(thread->state, rc);
+            return (3);
         }
     }
 
@@ -1391,6 +1422,8 @@ static int lua_dbopen(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_header(lua_State *L):
+ * header(key, value): Sets a given HTTP header key and value.
  =======================================================================================================================
  */
 static int lua_header(lua_State *L) {
@@ -1423,6 +1456,8 @@ static int lua_header(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_echo(lua_State *L):
+ * echo(...): Same as print(...) in Lua.
  =======================================================================================================================
  */
 static int lua_echo(lua_State *L) {
@@ -1467,6 +1502,8 @@ static int lua_echo(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_setContentType(lua_State *L):
+ * setContentType(type): Sets the content type of the returned output.
  =======================================================================================================================
  */
 static int lua_setContentType(lua_State *L) {
@@ -1496,6 +1533,8 @@ static int lua_setContentType(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_setReturnCode(lua_State *L):
+ * setReturnCode(rc): Sets the return code of the HTTP output to _rc_.
  =======================================================================================================================
  */
 static int lua_setReturnCode(lua_State *L) {
@@ -1518,6 +1557,8 @@ static int lua_setReturnCode(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_getEnv(lua_State *L):
+ * getEnv(): Returns a table with the current HTTP request environment.
  =======================================================================================================================
  */
 static int lua_getEnv(lua_State *L) {
@@ -1537,6 +1578,7 @@ static int lua_getEnv(lua_State *L) {
         char                *pwd = getPWD(thread);
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+        
         lua_newtable(thread->state);
         fields = apr_table_elts(thread->r->headers_in);
         e = (apr_table_entry_t *) fields->elts;
@@ -1606,6 +1648,14 @@ static int lua_getEnv(lua_State *L) {
             lua_pushstring(thread->state, pwd);
             lua_rawset(L, -3);
         }
+        lua_pushstring(thread->state, "Server-Banner");
+        lua_pushstring(thread->state, ap_get_server_banner());
+        lua_rawset(L, -3);
+        
+        lua_pushstring(thread->state, "Server-Version");
+        lua_pushstring(thread->state, ap_get_server_version());
+        lua_rawset(L, -3);
+        
 
         return (1);
     }
@@ -1615,6 +1665,8 @@ static int lua_getEnv(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * lua_fileinfo(lua_State *L):
+ * file.stat(filename): Returns a table with information on the given file.
  =======================================================================================================================
  */
 static int lua_fileinfo(lua_State *L)
@@ -1656,6 +1708,8 @@ static int lua_fileinfo(lua_State *L)
 
 /*
  =======================================================================================================================
+ * lua_clock(lua_State *L):
+ * clock(): Returns a high definition clock value for use with benchmarking.
  =======================================================================================================================
  */
 static int lua_clock(lua_State *L)
@@ -1696,6 +1750,8 @@ static int lua_clock(lua_State *L)
 
 /*
  =======================================================================================================================
+ * lua_compileTime(lua_State *L):
+ * compileTime(): Returns the time when the request for this script got called using the same value type as clock().
  =======================================================================================================================
  */
 static int lua_compileTime(lua_State *L) {
@@ -1721,6 +1777,8 @@ static int lua_compileTime(lua_State *L) {
 
 /*
  =======================================================================================================================
+ * util_read(request_rec *r, const char **rbuf, apr_off_t *size):
+ * Reads any additional form data sent in POST requests.
  =======================================================================================================================
  */
 static int util_read(request_rec *r, const char **rbuf, apr_off_t *size) {
@@ -2298,11 +2356,13 @@ static void module_init(apr_pool_t *pool) {
 #ifndef _WIN32
     pthread_mutex_init(&Lua_states.mutex, 0);
 #endif
+    apr_dbd_init(pool);
     Lua_states.states = (lua_thread *) apr_pcalloc(pool, LUA_STATES * sizeof(lua_thread));
     for (x = 0; x < LUA_STATES; x++) {
         if (!Lua_states.states[x].state) {
             Lua_states.states[x].files = apr_pcalloc(pool, LUA_FILES * sizeof(plua_files));
             lua_init_state(&Lua_states.states[x], x);
+            Lua_states.states[x].bigPool = pool;
         }
     }
 }
