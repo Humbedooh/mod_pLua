@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        22
+#define PLUA_VERSION        23
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -1165,11 +1165,27 @@ static int lua_dbclose(lua_State *L) {
         db->handle = 0;
         db->alive = 0;
     }
+   
     lua_settop(L, 0);
     lua_pushnumber(L, rc);
     return (1);
 }
 
+static int lua_dbhandle(lua_State *L) {
+    /*~~~~~~~~~~~~~~~~~~~~*/
+    dbStruct        *db = 0;
+    /*~~~~~~~~~~~~~~~~~~~~*/
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_rawgeti(L, 1, 0);
+    luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
+    db = (dbStruct *) lua_topointer(L, -1);
+    if (db && db->alive) {
+        lua_pushboolean(L, 1);
+    }
+    else lua_pushboolean(L, 0);
+    return 1;
+}
 /*
  =======================================================================================================================
  * lua_dbdo(lua_State *L):
@@ -1349,6 +1365,7 @@ static const luaL_reg   db_methods[] =
     { "close", lua_dbclose },
     { "query", lua_dbquery },
     { "run", lua_dbdo },
+    { "active", lua_dbhandle },
     { "__gc", lua_dbclose},
     { 0, 0 }
 };

@@ -1,3 +1,6 @@
+0.23:
+- Added db:active() for checking whether a database connection is still working or closed (or GC'ed)
+
 0.22:
 - Added some descriptions to main.c
 - Added a few more environment keys/values
