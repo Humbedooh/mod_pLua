@@ -1188,7 +1188,7 @@ static int lua_dbhandle(lua_State *L) {
 
         if (db && db->alive) {
             rc = apr_dbd_check_conn(db->driver, thread->bigPool, db->handle);
-            if (rc = APR_SUCCESS) {
+            if (rc == APR_SUCCESS) {
                 lua_pushboolean(L, 1);
                 return 1;
             }
