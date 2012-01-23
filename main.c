@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        23
+#define PLUA_VERSION        24
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -78,6 +78,7 @@ typedef struct
     int             typeSet;
     int             returnCode;
     int             youngest;
+    int             written;
     struct timespec t;
     plua_files      *files;
 } lua_thread;
@@ -1510,11 +1511,17 @@ static int lua_echo(lua_State *L) {
             x = 0;
             if (PLUA_LSTRING) {
                 el = lua_tolstring(L, y, &x);
-                if (el && x > 0) ap_rwrite(el, x, thread->r);
+                if (el && x > 0) {
+                    ap_rwrite(el, x, thread->r);
+                    thread->written += x;
+                }
+                
             } else {
                 el = lua_tostring(L, y);
                 if (el) ap_rputs(el, thread->r);
+                thread->written += strlen(el);
             }
+            if (thread->written > 10240) { ap_rflush(thread->r); thread->written = 0; }
         }
 
         lua_settop(L, 0);
@@ -1671,6 +1678,9 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Path-Info");
         lua_pushstring(thread->state, thread->r->path_info);
         lua_rawset(L, -3);
+        lua_pushstring(thread->state, "Hostname");
+        lua_pushstring(thread->state, thread->r->hostname);
+        lua_rawset(L, -3);
         if (pwd) {
             lua_pushstring(thread->state, "Working-Directory");
             lua_pushstring(thread->state, pwd);
@@ -1707,7 +1717,7 @@ static int lua_fileinfo(lua_State *L)
     struct stat fileinfo;
     const char  *filename;
     /*~~~~~~~~~~~~~~~~~~*/
-
+    
     luaL_checktype(L, 1, LUA_TSTRING);
     filename = lua_tostring(L, 1);
     lua_settop(L, 0);
@@ -2313,6 +2323,7 @@ static int plua_handler(request_rec *r) {
 
         /* Set up the lua_thread struct and change to the current directory. */
         l->r = r;
+        l->written = 0;
 #ifndef _WIN32
         rc = chdir(getPWD(l));
 #else
