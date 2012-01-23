@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        24
+#define PLUA_VERSION        25
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -105,7 +105,8 @@ typedef struct
 {
     apr_dbd_t               *handle;
     const apr_dbd_driver_t  *driver;
-    int                     alive;
+    int                      alive;
+    apr_pool_t         *pool;
 } dbStruct;
 #ifndef PRIx32
 #   define PRIx32  "x"
@@ -1171,6 +1172,7 @@ static int lua_dbclose(lua_State *L) {
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
+        apr_pool_destroy(db->pool);
     }
    
     lua_settop(L, 0);
@@ -1194,7 +1196,7 @@ static int lua_dbhandle(lua_State *L) {
         db = (dbStruct *) lua_topointer(L, -1);
 
         if (db && db->alive) {
-            rc = apr_dbd_check_conn(db->driver, thread->bigPool, db->handle);
+            rc = apr_dbd_check_conn(db->driver, db->pool, db->handle);
             if (rc == APR_SUCCESS) {
                 lua_pushboolean(L, 1);
                 return 1;
@@ -1282,6 +1284,7 @@ static int lua_dbescape(lua_State *L) {
         luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
         db = (dbStruct *) lua_topointer(L, -1);
         if (db && db->alive) {
+            apr_dbd_init(thread->r->pool);
             escaped = apr_dbd_escape(db->driver, thread->r->pool, statement, db->handle);
             if (escaped) {
                 lua_pushstring(L, escaped);
@@ -1326,7 +1329,7 @@ static int lua_dbquery(lua_State *L) {
                                 cols;
             apr_dbd_results_t   *results = 0;
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
+            apr_dbd_init(thread->r->pool);
             rc = apr_dbd_select(db->driver, thread->r->pool, db->handle, &results, statement, 0);
             if (rc == APR_SUCCESS) {
 
@@ -1406,23 +1409,27 @@ static int lua_dbopen(lua_State *L) {
     lua_thread      *thread;
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
+    apr_pool_t* pool = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
+    
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
-        db = (dbStruct *) apr_pcalloc(thread->bigPool, sizeof(dbStruct));
+        apr_pool_create(&pool, thread->bigPool);
+        db = (dbStruct *) apr_pcalloc(pool, sizeof(dbStruct));//apr_pcalloc(thread->bigPool, sizeof(dbStruct));
         db->alive = 0;
+        db->pool = pool;
+        apr_dbd_init(pool);
         luaL_checktype(L, 1, LUA_TSTRING);
         luaL_checktype(L, 2, LUA_TSTRING);
         type = lua_tostring(L, 1);
         arguments = lua_tostring(L, 2);
         lua_settop(L, 0);
         apr_dbd_init(thread->r->pool);
-        rc = apr_dbd_get_driver(thread->bigPool, type, &db->driver);
+        rc = apr_dbd_get_driver(db->pool, type, &db->driver);
         if (rc == APR_SUCCESS) {
             if (strlen(arguments)) {
-                rc = apr_dbd_open_ex(db->driver, thread->bigPool, arguments, &db->handle, &error);
+                rc = apr_dbd_open_ex(db->driver, db->pool, arguments, &db->handle, &error);
                 if (rc == APR_SUCCESS) {
                     db->alive = 1;
                     lua_newtable(L);
@@ -1431,7 +1438,7 @@ static int lua_dbopen(lua_State *L) {
                     lua_rawseti(L, -2, 0);
                     return (1);
                 } else {
-
+                    apr_pool_destroy(pool);
                     lua_pushnil(L);
                     if (error) {
                         lua_pushstring(L, error);
@@ -1440,10 +1447,12 @@ static int lua_dbopen(lua_State *L) {
                     return 1;
                 }
             }
+            apr_pool_destroy(pool);
             lua_pushnil(L);
             lua_pushliteral(L, "No database connection string was specified.");
             return (2);
         } else {
+            apr_pool_destroy(pool);
             lua_pushnil(thread->state);
             lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
             lua_pushinteger(thread->state, rc);

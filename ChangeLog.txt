@@ -1,3 +1,6 @@
+0.25:
+- Database handles now have their own memory pool to play with and free up on db:close()
+
 0.24:
 - Output will now be flushed for each 20KB data printed to avoid overruns
 - Added ServerName information to getEnv()
