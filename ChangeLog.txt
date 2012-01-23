@@ -1,3 +1,8 @@
+0.24:
+- Output will now be flushed for each 20KB data printed to avoid overruns
+- Added ServerName information to getEnv()
+- mod_plua will now launch in a state pool reserved for each specific vhost to avoid global collisions
+
 0.23:
 - Added db:active() for checking whether a database connection is still working or closed (or GC'ed)
 

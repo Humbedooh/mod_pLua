@@ -18,6 +18,7 @@
 #define MAX_MULTIPLES       25
 #define PLUA_DEBUG          0
 #define PLUA_LSTRING        1
+#define PLUA_DOMAINS        50
 #ifdef _WIN32
 #   define sleep(a)    Sleep(a * 1000)
 #endif
@@ -59,9 +60,9 @@
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
-static int  LUA_STATES = 50;    /* Keep 50 states open */
+static int  LUA_STATES = 25;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
-static int  LUA_FILES = 200;    /* Number of files to keep cached */
+static int  LUA_FILES = 50;    /* Number of files to keep cached */
 typedef struct
 {
     char    filename[257];
@@ -81,12 +82,16 @@ typedef struct
     int             written;
     struct timespec t;
     plua_files      *files;
+    void            *domain;
 } lua_thread;
-typedef struct
-{
-    lua_thread      *states;
+
+typedef struct {
+    lua_thread  *states;
     pthread_mutex_t mutex;
-} lua_states;
+    char         domain[512];
+    apr_pool_t* pool;
+} lua_domain;
+
 typedef struct
 {
     const char  *key;
@@ -94,7 +99,8 @@ typedef struct
     int         sizes[MAX_MULTIPLES];
     const char  *values[MAX_MULTIPLES];
 } formdata;
-static lua_states   Lua_states;
+static lua_domain*   plua_domains;
+
 typedef struct
 {
     apr_dbd_t               *handle;
@@ -1521,7 +1527,7 @@ static int lua_echo(lua_State *L) {
                 if (el) ap_rputs(el, thread->r);
                 thread->written += strlen(el);
             }
-            if (thread->written > 10240) { ap_rflush(thread->r); thread->written = 0; }
+            if (thread->written > 20480) { ap_rflush(thread->r); thread->written = 0; }
         }
 
         lua_settop(L, 0);
@@ -1678,8 +1684,8 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Path-Info");
         lua_pushstring(thread->state, thread->r->path_info);
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Hostname");
-        lua_pushstring(thread->state, thread->r->hostname);
+        lua_pushstring(thread->state, "ServerName");
+        lua_pushstring(thread->state, thread->r->server->server_hostname);
         lua_rawset(L, -3);
         if (pwd) {
             lua_pushstring(thread->state, "Working-Directory");
@@ -2179,7 +2185,7 @@ void lua_init_state(lua_thread *thread, int x) {
     thread->state = luaL_newstate();
     thread->sessions = 0;
     L = (lua_State *) thread->state;
-    lua_pushinteger(L, x);
+    lua_pushinteger(L, 1);
     luaL_ref(L, LUA_REGISTRYINDEX);
     luaL_openlibs(L);
     luaopen_debug(L);
@@ -2196,29 +2202,59 @@ void lua_init_state(lua_thread *thread, int x) {
     Acquires a Lua state from the global stack
  =======================================================================================================================
  */
-lua_thread *lua_acquire_state(void) {
+lua_thread *lua_acquire_state(request_rec* r, const char* hostname) {
 
     /*~~~~~~~~~~~~~~~~~~*/
-    int         x;
+    int         x,y;
     int         found = 0;
     lua_thread  *L = 0;
+    lua_domain *domain = 0;
     /*~~~~~~~~~~~~~~~~~~*/
-
+    
+    for (x = 0; x < PLUA_DOMAINS; x++) {
+        if (!strcmp(hostname, plua_domains[x].domain)) {
+            domain = &plua_domains[x];
+          //  ap_rputs("Found the domain in the cache\r\n",r);
+            break;
+        }
+    }
+    
+    if (!domain) {
+        //ap_rputs("Adding new domain!\r\n",r);
+        for (x = 0; x < PLUA_DOMAINS; x++) {
+            if (!strlen(plua_domains[x].domain)) {
+                domain = &plua_domains[x];
+                strcpy(domain->domain, hostname);
+                domain->states = (lua_thread *) apr_pcalloc(domain->pool, LUA_STATES * sizeof(lua_thread));
+                for (y = 0; y < LUA_STATES; y++) {
+                    if (!domain->states[y].state) {
+                        domain->states[y].files = apr_pcalloc(domain->pool, LUA_FILES * sizeof(plua_files));
+                        lua_init_state(&domain->states[y], y);
+                        domain->states[y].bigPool = domain->pool;
+                        domain->states[y].domain = (void*) domain;
+                    }
+                }
+                break;
+            }
+        }
+        
+    }
+    
 #ifndef _WIN32
-    pthread_mutex_lock(&Lua_states.mutex);
+    pthread_mutex_lock(&domain->mutex);
 #endif
     for (x = 0; x < LUA_STATES; x++) {
-        if (!Lua_states.states[x].working && Lua_states.states[x].state) {
-            Lua_states.states[x].working = 1;
-            Lua_states.states[x].sessions++;
-            L = &Lua_states.states[x];
+        if (!domain->states[x].working && domain->states[x].state) {
+            domain->states[x].working = 1;
+            domain->states[x].sessions++;
+            L = &domain->states[x];
             found = 1;
             break;
         }
     }
 
 #ifndef _WIN32
-    pthread_mutex_unlock(&Lua_states.mutex);
+    pthread_mutex_unlock(&domain->mutex);
 #endif
     if (found)
     {
@@ -2238,7 +2274,9 @@ lua_thread *lua_acquire_state(void) {
         return (L);
     } else {
         sleep(1);
-        return (lua_acquire_state());
+        return (lua_acquire_state(r, hostname));
+        //ap_rputs("Couldn't find an available state!\r\n", r);
+        return 0;
     }
 }
 
@@ -2247,31 +2285,21 @@ lua_thread *lua_acquire_state(void) {
     Releases a Lua state and frees it up for use elsewhere @param X the lua_State to release
  =======================================================================================================================
  */
-void lua_release_state(lua_State *X) {
+void lua_release_state(lua_thread *thread) {
 
-    /*~~*/
-    int x;
-    /*~~*/
 
-    lua_gc(X, LUA_GCSTEP, 1);
+    lua_gc(thread->state, LUA_GCSTEP, 1);
 #ifndef _WIN32
-    pthread_mutex_lock(&Lua_states.mutex);
+    pthread_mutex_lock(& ((lua_domain*)(thread->domain))->mutex);
 #endif
-    for (x = 0; x < LUA_STATES; x++) {
-        if (Lua_states.states[x].state == X) {
-            Lua_states.states[x].working = 0;
-
-            /* Check if state needs restarting */
-            if (Lua_states.states[x].sessions >= LUA_RUNS) {
-                lua_close(Lua_states.states[x].state);
-                lua_init_state(&Lua_states.states[x], x);
-            }
-            break;
-        }
+    thread->working = 0;
+    /* Check if state needs restarting */
+    if (thread->sessions > LUA_RUNS) {
+        lua_close(thread->state);
+        lua_init_state(thread, 1);
     }
-
 #ifndef _WIN32
-    pthread_mutex_unlock(&Lua_states.mutex);
+    pthread_mutex_unlock(&((lua_domain*)(thread->domain))->mutex);
 #endif
 }
 
@@ -2297,7 +2325,7 @@ static int plua_handler(request_rec *r) {
     /* Check if we are being called, and that the request method is one we can handle. */
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
-
+   
     /* Check if the file requested really exists. */
     if (stat(r->filename, &statbuf) == -1) exists = 0;
     else if (statbuf.st_mode & 0x00400000)  /* Is it a folder? */
@@ -2314,13 +2342,15 @@ static int plua_handler(request_rec *r) {
         /* Else start processing the request */
     } else {
 
+        
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         int         x = 0,
                     rc = 0;
-        lua_thread  *l = lua_acquire_state();
+        lua_thread  *l = lua_acquire_state(r, r->server->server_hostname);
         lua_State   *L = l->state;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
+        //ap_rprintf(r, "Acquired state !\r\n");
+        //return OK;
         /* Set up the lua_thread struct and change to the current directory. */
         l->r = r;
         l->written = 0;
@@ -2373,7 +2403,7 @@ static int plua_handler(request_rec *r) {
 
         /* Cleanup */
         luaL_unref(L, LUA_REGISTRYINDEX, x);
-        lua_release_state(L);
+        lua_release_state(l);
         return (rc);
     }
 
@@ -2392,18 +2422,14 @@ static void module_init(apr_pool_t *pool) {
     int x;
     /*~~*/
 
+    plua_domains = apr_pcalloc(pool, sizeof(lua_domain) * PLUA_DOMAINS);
+    for (x = 0; x < PLUA_DOMAINS; x++) {
 #ifndef _WIN32
-    pthread_mutex_init(&Lua_states.mutex, 0);
+        pthread_mutex_init(&plua_domains[x].mutex, 0);
 #endif
-    apr_dbd_init(pool);
-    Lua_states.states = (lua_thread *) apr_pcalloc(pool, LUA_STATES * sizeof(lua_thread));
-    for (x = 0; x < LUA_STATES; x++) {
-        if (!Lua_states.states[x].state) {
-            Lua_states.states[x].files = apr_pcalloc(pool, LUA_FILES * sizeof(plua_files));
-            lua_init_state(&Lua_states.states[x], x);
-            Lua_states.states[x].bigPool = pool;
-        }
+        plua_domains[x].pool = pool;
     }
+    apr_dbd_init(pool);
 }
 
 /*
