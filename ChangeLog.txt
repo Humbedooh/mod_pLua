@@ -1,3 +1,7 @@
+0.26:
+- mod_pLua scripts can now use both the <? ?> and the <?lua ?> enclosures
+- Added a new directive, pLuaRaw <ext> for making pLua compile certain files as plain Lua code
+
 0.25:
 - Database handles now have their own memory pool to play with and free up on db:close()
 

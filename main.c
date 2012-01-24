@@ -148,6 +148,8 @@ static const pLua_tags pLua_file_tags[] = {
     {"<?", "?>"},
     {0,0}
 };
+#define PLUA_RAW_TYPES 32
+static char* pLua_rawTypes[PLUA_RAW_TYPES];
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     mod_pLua compiler and parser functions
@@ -351,7 +353,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
     stores it in the cache.
  =======================================================================================================================
  */
-int lua_compile_file(lua_thread *thread, const char *filename, struct stat *statbuf) {
+int lua_compile_file(lua_thread *thread, const char *filename, struct stat *statbuf, char rawCompile) {
 
     /*~~~~~~~~~~~~~~~*/
     FILE    *input = 0;
@@ -407,7 +409,12 @@ int lua_compile_file(lua_thread *thread, const char *filename, struct stat *stat
             fclose(input);
 
             /* Hand the file data over to lua_parse_file and preprocess the html and code. */
-            rc = lua_parse_file(thread, iBuffer);
+            if (!rawCompile) {
+                rc = lua_parse_file(thread, iBuffer);
+            }
+            else {
+                rc = luaL_loadstring(thread->state, iBuffer ? iBuffer : "echo('no input speficied');");
+            }
             free(iBuffer);
 
             /* Did we encounter a syntax error while parsing? (I think not, how could we?) */
@@ -2123,6 +2130,7 @@ static int lua_includeFile(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~*/
     const char  *filename;
     lua_thread  *thread = 0;
+    char compileRaw = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
@@ -2139,7 +2147,7 @@ static int lua_includeFile(lua_State *L) {
         lua_settop(L, 0);
         if (stat(filename, &fileinfo) == -1) lua_pushboolean(L, 0);
         else {
-            rc = lua_compile_file(thread, filename, &fileinfo);
+            rc = lua_compile_file(thread, filename, &fileinfo, compileRaw);
             if (rc > 0) {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
                 rc = lua_pcall(L, 0, LUA_MULTRET, 0);
@@ -2352,6 +2360,7 @@ static int plua_handler(request_rec *r) {
     /*~~~~~~~~~~~~~~~~~~~*/
     int         exists = 1;
     struct stat statbuf;
+    char compileRaw = 0;
     /*~~~~~~~~~~~~~~~~~~~*/
 
     /* Check if we are being called, and that the request method is one we can handle. */
@@ -2376,6 +2385,8 @@ static int plua_handler(request_rec *r) {
 
         
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        char *xStart = 0;
+        char *xEnd = 0;
         int         x = 0,
                     rc = 0;
         lua_thread  *l = lua_acquire_state(r, r->server->server_hostname);
@@ -2398,9 +2409,25 @@ static int plua_handler(request_rec *r) {
         /* Push the lua_thread struct onto the Lua registry (this should be changed to an init operation?) */
         lua_pushlightuserdata(L, l);
         x = luaL_ref(L, LUA_REGISTRYINDEX);
+        
+        // Check if we want to compile this file as a plain lua file or not
+        xEnd = r->filename;
+        xStart = strchr(r->filename, '.');
+        while (xStart != 0) {
+            xEnd = xStart;
+            xStart = strchr(xEnd+1, '.');
+        }
+        for (x = 0; x < PLUA_RAW_TYPES; x++) {
+            if (strlen(pLua_rawTypes[x])) {
+                if (!strcmp(xEnd, pLua_rawTypes[x])) {
+                    compileRaw = 1;
+                    break;
+                }
+            }
+        }
 
         /* Call the compiler function and let it either compile or read from cache. */
-        rc = lua_compile_file(l, r->filename, &statbuf);
+        rc = lua_compile_file(l, r->filename, &statbuf, compileRaw);
 
         /* Compiler error? */
         if (rc < 1) {
@@ -2462,6 +2489,10 @@ static void module_init(apr_pool_t *pool) {
         pLua_domains[x].pool = pool;
     }
     apr_dbd_init(pool);
+    
+    for (x = 0; x < PLUA_RAW_TYPES; x++) {
+        pLua_rawTypes[x] = (char*) apr_pcalloc(pool, 64);
+    }
 }
 
 /*
@@ -2520,11 +2551,34 @@ const char *pLua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg) {
     return (NULL);
 }
 
+/*
+ =======================================================================================================================
+    pLuaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
+    so having 200 elements in 50 states will use 3MB of memory. If you run a large server with many scripts and
+    domains, you may want to set this to a higher number, fx. 1000.
+ =======================================================================================================================
+ */
+const char *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
+    int x = 0;
+    /*~~~~~~~~~~~~~~*/
+
+    for (x = 0; x < PLUA_RAW_TYPES; x++) {
+        if (!strlen(pLua_rawTypes[x])) {
+            strcpy(pLua_rawTypes[x], arg);
+            break;
+        }
+    }
+    return (NULL);
+}
+
 static const command_rec        my_directives[] =
 {
     AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
     AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
     AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
+    AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file"),
     { NULL }
 };
 module AP_MODULE_DECLARE_DATA   plua_module = { STANDARD20_MODULE_STUFF, NULL, NULL, NULL, NULL, my_directives, register_hooks };
