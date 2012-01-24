@@ -2,7 +2,7 @@
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    mod_plua definitions
+    mod_pLua definitions
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
@@ -25,13 +25,14 @@
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    mod_plua includes
+    mod_pLua includes
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <time.h>
 #ifdef _WIN32
 #   include <httpd.h>
 #   include <http_protocol.h>
@@ -56,7 +57,7 @@
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    mod_plua structs and globals
+    mod_pLua structs and globals
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
@@ -68,7 +69,7 @@ typedef struct
     char    filename[257];
     time_t  modified;
     int     refindex;
-} plua_files;
+} pLua_files;
 typedef struct
 {
     int             working;
@@ -81,7 +82,7 @@ typedef struct
     int             youngest;
     int             written;
     struct timespec t;
-    plua_files      *files;
+    pLua_files      *files;
     void            *domain;
 } lua_thread;
 
@@ -99,7 +100,7 @@ typedef struct
     int         sizes[MAX_MULTIPLES];
     const char  *values[MAX_MULTIPLES];
 } formdata;
-static lua_domain*   plua_domains;
+static lua_domain*   pLua_domains;
 
 typedef struct
 {
@@ -137,22 +138,22 @@ typedef struct
     char    result;
     int     stepcount;
 } base64_encodestate;
-static const char   *plua_error_template = "<h1><img alt=\"\" src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA3BJREFUeNrsl0tME1EUhs+00we0WCxtpVhAoBqa8EjEIPjCKASjoqAujRoXxIWJLjTuDAsXLpQQ36/owrBQg0uNGjTgoyFRaxogiqDRgrYRUx5tZ+i8PENHUyfFpEwVYzzJl9vczp3733POvecOIQgCzKWpYI6NnOkPgmhZjc1BxIqwMzwm9k8gfqQXcUstJ39QEFqSE4C2AdmW5IJEQT3IOeRGIiEpCoEgkXBBK5F25BZim3UIEsxAIf0AvECSKk6lUkVZluexz4iJnIvYZOtpQszIJiQ8GwFye4cerrHbM8MVFQs1paXW7TTN7dTrSWpsjL7W0dE3EQyGDzEMlGEGfR9TgxxBjqZAACuUldkjq1Ytsvf1BW6fOPF0OccJBI9OyM01rdu4cck9dNqO9nbPFYYh1sQNbEYuIJ8U5IAYDTW3eXNx1sDAaHdX12AVw8Qm37KlGF682Kdtbq5oyM/PvFxUlHUAcy8YN3gBsl5xEhqN2vDUFHuss3PQCaCVejlobHSB1WqAqqpcCIWo1Vu3utZpNORd2fAaxQLwwNS73R8bzGYDmM1pPyLY1uaGBw+GoKOjH86efa7S6zV7TKa0D7IcdijOAZ4XdIFAxFRZ6YBAIAyRCAM5ORnw5UsIWlufQF7efIhGefRC1BJbmCiAmGlHJS8At17Y4TD6eZ4rEstHdrYRli2zg0ajBqfTDIWFZujpGQadjnzDMKwpbnLR3ioOActyfHm5/bzfPxmqrnaAy2WBpUtzsLWCVktCMEhBSYmN8nr9l8bHqXqZgPsKPUAARVGGcJhpq61dXHryZPdu3BXw7JkPMDGBphmwWNKFpibXqTt3BlbgugriBg8hj1NwDqgIj8evrqtz7qmvL/b4fOOHv36lbQaDVigoyBzJyNCduX79lYOm2f2iuDi7hIynQACZ/vKlb4XXO0KRpKZLEPhem23eQswve3//aPbkJL0Lj+Zy2eRidTw921ogN3Qr2cmyYj5MV2fO5wtK7yCIWMx/ivsAsleqISmphoT0PEKIaPCnCCGbWNxyN5G1yGsl1TAZE+v+MPIIufqrpFMi4DNyHInGeY5BgrFKOb3XJ1N2JUtgo8hFZGquLqXEP3kr/i/gv4C/WoA6wZlB/EkBz5H3UjERTzwPQv+xj1O0h9IHRZ608oe/IwTfBBgAsyA11q+rcQsAAAAASUVORK5CYII=\" />%s:</h1><pre>%s</pre>";
+static const char   *pLua_error_template = "<h1><img alt=\"\" src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA3BJREFUeNrsl0tME1EUhs+00we0WCxtpVhAoBqa8EjEIPjCKASjoqAujRoXxIWJLjTuDAsXLpQQ36/owrBQg0uNGjTgoyFRaxogiqDRgrYRUx5tZ+i8PENHUyfFpEwVYzzJl9vczp3733POvecOIQgCzKWpYI6NnOkPgmhZjc1BxIqwMzwm9k8gfqQXcUstJ39QEFqSE4C2AdmW5IJEQT3IOeRGIiEpCoEgkXBBK5F25BZim3UIEsxAIf0AvECSKk6lUkVZluexz4iJnIvYZOtpQszIJiQ8GwFye4cerrHbM8MVFQs1paXW7TTN7dTrSWpsjL7W0dE3EQyGDzEMlGEGfR9TgxxBjqZAACuUldkjq1Ytsvf1BW6fOPF0OccJBI9OyM01rdu4cck9dNqO9nbPFYYh1sQNbEYuIJ8U5IAYDTW3eXNx1sDAaHdX12AVw8Qm37KlGF682Kdtbq5oyM/PvFxUlHUAcy8YN3gBsl5xEhqN2vDUFHuss3PQCaCVejlobHSB1WqAqqpcCIWo1Vu3utZpNORd2fAaxQLwwNS73R8bzGYDmM1pPyLY1uaGBw+GoKOjH86efa7S6zV7TKa0D7IcdijOAZ4XdIFAxFRZ6YBAIAyRCAM5ORnw5UsIWlufQF7efIhGefRC1BJbmCiAmGlHJS8At17Y4TD6eZ4rEstHdrYRli2zg0ajBqfTDIWFZujpGQadjnzDMKwpbnLR3ioOActyfHm5/bzfPxmqrnaAy2WBpUtzsLWCVktCMEhBSYmN8nr9l8bHqXqZgPsKPUAARVGGcJhpq61dXHryZPdu3BXw7JkPMDGBphmwWNKFpibXqTt3BlbgugriBg8hj1NwDqgIj8evrqtz7qmvL/b4fOOHv36lbQaDVigoyBzJyNCduX79lYOm2f2iuDi7hIynQACZ/vKlb4XXO0KRpKZLEPhem23eQswve3//aPbkJL0Lj+Zy2eRidTw921ogN3Qr2cmyYj5MV2fO5wtK7yCIWMx/ivsAsleqISmphoT0PEKIaPCnCCGbWNxyN5G1yGsl1TAZE+v+MPIIufqrpFMi4DNyHInGeY5BgrFKOb3XJ1N2JUtgo8hFZGquLqXEP3kr/i/gv4C/WoA6wZlB/EkBz5H3UjERTzwPQv+xj1O0h9IHRZ608oe/IwTfBBgAsyA11q+rcQsAAAAASUVORK5CYII=\" />%s:</h1><pre>%s</pre>";
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    mod_plua compiler and parser functions
+    mod_pLua compiler and parser functions
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
 /*
  =======================================================================================================================
- * plua_print_error(lua_thread *thread, const char *type):
- * Prints out a mod_plua error message of type _type_ to the remote client.
+ * pLua_print_error(lua_thread *thread, const char *type):
+ * Prints out a mod_pLua error message of type _type_ to the remote client.
  * This does not necessarilly halt any ongoing execution of code.
  =======================================================================================================================
  */
-static void plua_print_error(lua_thread *thread, const char *type) {
+static void pLua_print_error(lua_thread *thread, const char *type) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     char        *errX;
@@ -162,7 +163,7 @@ static void plua_print_error(lua_thread *thread, const char *type) {
     err = err ? err : "(nil)";
     errX = ap_escape_html(thread->r->pool, err);
     ap_set_content_type(thread->r, "text/html;charset=ascii");
-    ap_rprintf(thread->r, plua_error_template, type, errX ? errX : err);
+    ap_rprintf(thread->r, pLua_error_template, type, errX ? errX : err);
 }
 
 /*
@@ -178,7 +179,7 @@ static int module_lua_panic(lua_State *L) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
-        plua_print_error(thread, "Lua PANIC");
+        pLua_print_error(thread, "Lua PANIC");
     } else {
         const char *el = lua_tostring(L, 1);
         printf("Lua PANIC: %s\n", el);
@@ -264,7 +265,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 lua_add_code(&output, test);
             }
 
-            /* Find the beginning and end of the plua chunk */
+            /* Find the beginning and end of the pLua chunk */
             at = (matchStart - input) + 2;
             matchEnd = strstr((char *) matchStart + 2, "?>");
             if (!matchEnd) matchEnd = (input + strlen(input));
@@ -771,7 +772,7 @@ void sha256_finish(sha256_context *ctx, uint8_t digest[32]) {
  =======================================================================================================================
  =======================================================================================================================
  */
-char *plua_sha256(const char *digest, lua_thread* thread) {
+char *pLua_sha256(const char *digest, lua_thread* thread) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     sha256_context  ctx;
@@ -808,7 +809,7 @@ static char value(char c) {
  =======================================================================================================================
  =======================================================================================================================
  */
-int plua_unbase64(unsigned char *dest, const unsigned char *src, size_t srclen) {
+int pLua_unbase64(unsigned char *dest, const unsigned char *src, size_t srclen) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~*/
     unsigned char   *p = dest;
@@ -853,14 +854,14 @@ int plua_unbase64(unsigned char *dest, const unsigned char *src, size_t srclen) 
  =======================================================================================================================
  =======================================================================================================================
  */
-char *plua_decode_base64(const char *src, lua_thread* thread) {
+char *pLua_decode_base64(const char *src, lua_thread* thread) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     size_t  ilen = strlen(src);
     char    *output = (char *) apr_pcalloc(thread->r->pool, ilen);
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    plua_unbase64((unsigned char *) output, (const unsigned char *) src, ilen);
+    pLua_unbase64((unsigned char *) output, (const unsigned char *) src, ilen);
     return (output);
 }
 
@@ -964,7 +965,7 @@ int base64_encode_blockend(char *code_out, base64_encodestate *state_in) {
  =======================================================================================================================
  =======================================================================================================================
  */
-char *plua_encode_base64(const char *src, size_t len, lua_thread* thread) {
+char *pLua_encode_base64(const char *src, size_t len, lua_thread* thread) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     base64_encodestate  state;
@@ -984,7 +985,7 @@ char *plua_encode_base64(const char *src, size_t len, lua_thread* thread) {
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    mod_plua Lua functions
+    mod_pLua Lua functions
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
@@ -1005,7 +1006,7 @@ static int lua_sha256(lua_State *L) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
-        output = plua_sha256((const char *) string, thread);
+        output = pLua_sha256((const char *) string, thread);
         lua_settop(L, 0);
         lua_pushstring(L, output);
         return (1);
@@ -1035,7 +1036,7 @@ static int lua_b64dec(lua_State *L) {
     if (thread) {
         if (ilen) {
             output = apr_pcalloc(thread->r->pool, ilen);
-            olen = plua_unbase64((unsigned char *) output, (const unsigned char *) string, ilen);
+            olen = pLua_unbase64((unsigned char *) output, (const unsigned char *) string, ilen);
             lua_settop(L, 0);
             lua_pushlstring(L, output, olen);
         } else {
@@ -1068,7 +1069,7 @@ static int lua_b64enc(lua_State *L) {
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
         if (ilen) {
-            output = plua_encode_base64(string, ilen, thread);
+            output = pLua_encode_base64(string, ilen, thread);
             lua_settop(L, 0);
             lua_pushstring(L, output);
         } else {
@@ -1425,7 +1426,7 @@ static int lua_dbopen(lua_State *L) {
         type = lua_tostring(L, 1);
         arguments = lua_tostring(L, 2);
         lua_settop(L, 0);
-        apr_dbd_init(thread->r->pool);
+        //apr_dbd_init(thread->r->pool);
         rc = apr_dbd_get_driver(db->pool, type, &db->driver);
         if (rc == APR_SUCCESS) {
             if (strlen(arguments)) {
@@ -1438,20 +1439,23 @@ static int lua_dbopen(lua_State *L) {
                     lua_rawseti(L, -2, 0);
                     return (1);
                 } else {
-                    apr_pool_destroy(pool);
                     lua_pushnil(L);
                     if (error) {
                         lua_pushstring(L, error);
+                        apr_pool_destroy(pool);
                         return (2);
                     }
+                    apr_pool_destroy(pool);
                     return 1;
                 }
             }
+            apr_pool_clear(pool);
             apr_pool_destroy(pool);
             lua_pushnil(L);
             lua_pushliteral(L, "No database connection string was specified.");
             return (2);
         } else {
+            apr_pool_clear(pool);
             apr_pool_destroy(pool);
             lua_pushnil(thread->state);
             lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
@@ -1651,25 +1655,29 @@ static int lua_getEnv(lua_State *L) {
         }
 
         /* Our own data */
-        lua_pushstring(thread->state, "Plua-States");
+        lua_pushstring(thread->state, "pLua-States");
         lua_pushinteger(thread->state, LUA_STATES);
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Plua-Runs");
+        lua_pushstring(thread->state, "pLua-Runs");
         lua_pushinteger(thread->state, LUA_RUNS);
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Plua-Sessions");
+        lua_pushstring(thread->state, "pLua-Sessions");
         lua_pushinteger(thread->state, thread->sessions);
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Plua-Files");
+        lua_pushstring(thread->state, "pLua-Files");
         lua_pushinteger(thread->state, LUA_FILES);
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Plua-Version");
+        lua_pushstring(thread->state, "pLua-Version");
         lua_pushinteger(thread->state, PLUA_VERSION);
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Remote-Address");
+#if (AP_SERVER_MINORVERSION_NUMBER > 2)
+        lua_pushstring(thread->state, thread->r->connection->client_ip);
+#else
         lua_pushstring(thread->state, thread->r->connection->remote_ip);
+#endif
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Plua-Handle");
+        lua_pushstring(thread->state, "pLua-Handle");
         lua_pushfstring(thread->state, "%p", thread);
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Lua-State");
@@ -1704,10 +1712,7 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Server-Banner");
         lua_pushstring(thread->state, ap_get_server_banner());
         lua_rawset(L, -3);
-        
-        lua_pushstring(thread->state, "Server-Version");
-        lua_pushstring(thread->state, ap_get_server_version());
-        lua_rawset(L, -3);
+
         
 
         return (1);
@@ -2121,11 +2126,11 @@ static int lua_includeFile(lua_State *L) {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
                 rc = lua_pcall(L, 0, LUA_MULTRET, 0);
                 if (rc) {
-                    plua_print_error(thread, "Run-time error");
+                    pLua_print_error(thread, "Run-time error");
                     lua_pushboolean(L, 0);
                 } else lua_pushboolean(L, 1);
             } else {
-                plua_print_error(thread, "Compiler error in included file");
+                pLua_print_error(thread, "Compiler error in included file");
                 lua_pushboolean(L, 0);
             }
         }
@@ -2173,7 +2178,7 @@ static void register_lua_functions(lua_State *L) {
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    mod_plua state functions
+    mod_pLua state functions
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
@@ -2221,8 +2226,8 @@ lua_thread *lua_acquire_state(request_rec* r, const char* hostname) {
     /*~~~~~~~~~~~~~~~~~~*/
     
     for (x = 0; x < PLUA_DOMAINS; x++) {
-        if (!strcmp(hostname, plua_domains[x].domain)) {
-            domain = &plua_domains[x];
+        if (!strcmp(hostname, pLua_domains[x].domain)) {
+            domain = &pLua_domains[x];
           //  ap_rputs("Found the domain in the cache\r\n",r);
             break;
         }
@@ -2231,13 +2236,13 @@ lua_thread *lua_acquire_state(request_rec* r, const char* hostname) {
     if (!domain) {
         //ap_rputs("Adding new domain!\r\n",r);
         for (x = 0; x < PLUA_DOMAINS; x++) {
-            if (!strlen(plua_domains[x].domain)) {
-                domain = &plua_domains[x];
+            if (!strlen(pLua_domains[x].domain)) {
+                domain = &pLua_domains[x];
                 strcpy(domain->domain, hostname);
                 domain->states = (lua_thread *) apr_pcalloc(domain->pool, LUA_STATES * sizeof(lua_thread));
                 for (y = 0; y < LUA_STATES; y++) {
                     if (!domain->states[y].state) {
-                        domain->states[y].files = apr_pcalloc(domain->pool, LUA_FILES * sizeof(plua_files));
+                        domain->states[y].files = apr_pcalloc(domain->pool, LUA_FILES * sizeof(pLua_files));
                         lua_init_state(&domain->states[y], y);
                         domain->states[y].bigPool = domain->pool;
                         domain->states[y].domain = (void*) domain;
@@ -2314,13 +2319,13 @@ void lua_release_state(lua_thread *thread) {
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    mod_plua hooks and handlers
+    mod_pLua hooks and handlers
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
 /*
  =======================================================================================================================
-    plua_handler(request_rec* r): The handler for events set to be handled by 'plua' in apache. It parses, compiles,
+    pLua_handler(request_rec* r): The handler for events set to be handled by 'pLua' in apache. It parses, compiles,
     caches and runs the files using all the functions above.
  =======================================================================================================================
  */
@@ -2381,7 +2386,7 @@ static int plua_handler(request_rec *r) {
 
         /* Compiler error? */
         if (rc < 1) {
-            plua_print_error(l, "Compiler error");
+            pLua_print_error(l, "Compiler error");
             rc = OK;
 
             /* No compiler error, let's run this file. */
@@ -2399,7 +2404,7 @@ static int plua_handler(request_rec *r) {
 
             /* DId we get a run-time error? */
             if (rc) {
-                plua_print_error(l, "Run-time error");
+                pLua_print_error(l, "Run-time error");
                 rc = OK;
 
                 /* No error, everything went fine, set up the content type if needed and return OK. */
@@ -2431,12 +2436,12 @@ static void module_init(apr_pool_t *pool) {
     int x;
     /*~~*/
 
-    plua_domains = apr_pcalloc(pool, sizeof(lua_domain) * PLUA_DOMAINS);
+    pLua_domains = apr_pcalloc(pool, sizeof(lua_domain) * PLUA_DOMAINS);
     for (x = 0; x < PLUA_DOMAINS; x++) {
 #ifndef _WIN32
-        pthread_mutex_init(&plua_domains[x].mutex, 0);
+        pthread_mutex_init(&pLua_domains[x].mutex, 0);
 #endif
-        plua_domains[x].pool = pool;
+        pLua_domains[x].pool = pool;
     }
     apr_dbd_init(pool);
 }
@@ -2452,10 +2457,10 @@ static void register_hooks(apr_pool_t *pool) {
 
 /*
  =======================================================================================================================
-    PluaStates N Sets the available amount of Lua states to N states. Default is 50
+    pLuaStates N Sets the available amount of Lua states to N states. Default is 50
  =======================================================================================================================
  */
-const char *plua_set_LuaStates(cmd_parms *cmd, void *cfg, const char *arg) {
+const char *pLua_set_LuaStates(cmd_parms *cmd, void *cfg, const char *arg) {
 
     /*~~~~~~~~~~~~~~*/
     int x = atoi(arg);
@@ -2467,10 +2472,10 @@ const char *plua_set_LuaStates(cmd_parms *cmd, void *cfg, const char *arg) {
 
 /*
  =======================================================================================================================
-    PluaRuns N Restarts Lua States after N sessions. Default is 500
+    pLuaRuns N Restarts Lua States after N sessions. Default is 500
  =======================================================================================================================
  */
-const char *plua_set_LuaRuns(cmd_parms *cmd, void *cfg, const char *arg) {
+const char *pLua_set_LuaRuns(cmd_parms *cmd, void *cfg, const char *arg) {
 
     /*~~~~~~~~~~~~~~*/
     int x = atoi(arg);
@@ -2482,12 +2487,12 @@ const char *plua_set_LuaRuns(cmd_parms *cmd, void *cfg, const char *arg) {
 
 /*
  =======================================================================================================================
-    PluaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
+    pLuaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
     so having 200 elements in 50 states will use 3MB of memory. If you run a large server with many scripts and
     domains, you may want to set this to a higher number, fx. 1000.
  =======================================================================================================================
  */
-const char *plua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg) {
+const char *pLua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg) {
 
     /*~~~~~~~~~~~~~~*/
     int x = atoi(arg);
@@ -2499,9 +2504,9 @@ const char *plua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg) {
 
 static const command_rec        my_directives[] =
 {
-    AP_INIT_TAKE1("PluaStates", plua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
-    AP_INIT_TAKE1("PluaRuns", plua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
-    AP_INIT_TAKE1("PluaFiles", plua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
+    AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
+    AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
+    AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
     { NULL }
 };
 module AP_MODULE_DECLARE_DATA   plua_module = { STANDARD20_MODULE_STUFF, NULL, NULL, NULL, NULL, my_directives, register_hooks };
