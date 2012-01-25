@@ -1,3 +1,7 @@
+0.27:
+- Error messages have been beautified and shows the file and line number that caused the error instead of '[[string "..."]]'.
+- The string.SHA256() function has been improved in speed significantly (2.5x speed improvement)
+
 0.26:
 - mod_pLua scripts can now use both the <? ?> and the <?lua ?> enclosures
 - Added a new directive, pLuaRaw <ext> for making pLua compile certain files as plain Lua code

@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        26
+#define PLUA_VERSION        27
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -138,7 +138,7 @@ typedef struct
     char    result;
     int     stepcount;
 } base64_encodestate;
-static const char   *pLua_error_template = "<h1><img alt=\"\" src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA3BJREFUeNrsl0tME1EUhs+00we0WCxtpVhAoBqa8EjEIPjCKASjoqAujRoXxIWJLjTuDAsXLpQQ36/owrBQg0uNGjTgoyFRaxogiqDRgrYRUx5tZ+i8PENHUyfFpEwVYzzJl9vczp3733POvecOIQgCzKWpYI6NnOkPgmhZjc1BxIqwMzwm9k8gfqQXcUstJ39QEFqSE4C2AdmW5IJEQT3IOeRGIiEpCoEgkXBBK5F25BZim3UIEsxAIf0AvECSKk6lUkVZluexz4iJnIvYZOtpQszIJiQ8GwFye4cerrHbM8MVFQs1paXW7TTN7dTrSWpsjL7W0dE3EQyGDzEMlGEGfR9TgxxBjqZAACuUldkjq1Ytsvf1BW6fOPF0OccJBI9OyM01rdu4cck9dNqO9nbPFYYh1sQNbEYuIJ8U5IAYDTW3eXNx1sDAaHdX12AVw8Qm37KlGF682Kdtbq5oyM/PvFxUlHUAcy8YN3gBsl5xEhqN2vDUFHuss3PQCaCVejlobHSB1WqAqqpcCIWo1Vu3utZpNORd2fAaxQLwwNS73R8bzGYDmM1pPyLY1uaGBw+GoKOjH86efa7S6zV7TKa0D7IcdijOAZ4XdIFAxFRZ6YBAIAyRCAM5ORnw5UsIWlufQF7efIhGefRC1BJbmCiAmGlHJS8At17Y4TD6eZ4rEstHdrYRli2zg0ajBqfTDIWFZujpGQadjnzDMKwpbnLR3ioOActyfHm5/bzfPxmqrnaAy2WBpUtzsLWCVktCMEhBSYmN8nr9l8bHqXqZgPsKPUAARVGGcJhpq61dXHryZPdu3BXw7JkPMDGBphmwWNKFpibXqTt3BlbgugriBg8hj1NwDqgIj8evrqtz7qmvL/b4fOOHv36lbQaDVigoyBzJyNCduX79lYOm2f2iuDi7hIynQACZ/vKlb4XXO0KRpKZLEPhem23eQswve3//aPbkJL0Lj+Zy2eRidTw921ogN3Qr2cmyYj5MV2fO5wtK7yCIWMx/ivsAsleqISmphoT0PEKIaPCnCCGbWNxyN5G1yGsl1TAZE+v+MPIIufqrpFMi4DNyHInGeY5BgrFKOb3XJ1N2JUtgo8hFZGquLqXEP3kr/i/gv4C/WoA6wZlB/EkBz5H3UjERTzwPQv+xj1O0h9IHRZ608oe/IwTfBBgAsyA11q+rcQsAAAAASUVORK5CYII=\" />%s:</h1><i>%s</i><br/><pre>%s</pre>";
+static const char   *pLua_error_template = "<h1><img alt=\"\" src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA3BJREFUeNrsl0tME1EUhs+00we0WCxtpVhAoBqa8EjEIPjCKASjoqAujRoXxIWJLjTuDAsXLpQQ36/owrBQg0uNGjTgoyFRaxogiqDRgrYRUx5tZ+i8PENHUyfFpEwVYzzJl9vczp3733POvecOIQgCzKWpYI6NnOkPgmhZjc1BxIqwMzwm9k8gfqQXcUstJ39QEFqSE4C2AdmW5IJEQT3IOeRGIiEpCoEgkXBBK5F25BZim3UIEsxAIf0AvECSKk6lUkVZluexz4iJnIvYZOtpQszIJiQ8GwFye4cerrHbM8MVFQs1paXW7TTN7dTrSWpsjL7W0dE3EQyGDzEMlGEGfR9TgxxBjqZAACuUldkjq1Ytsvf1BW6fOPF0OccJBI9OyM01rdu4cck9dNqO9nbPFYYh1sQNbEYuIJ8U5IAYDTW3eXNx1sDAaHdX12AVw8Qm37KlGF682Kdtbq5oyM/PvFxUlHUAcy8YN3gBsl5xEhqN2vDUFHuss3PQCaCVejlobHSB1WqAqqpcCIWo1Vu3utZpNORd2fAaxQLwwNS73R8bzGYDmM1pPyLY1uaGBw+GoKOjH86efa7S6zV7TKa0D7IcdijOAZ4XdIFAxFRZ6YBAIAyRCAM5ORnw5UsIWlufQF7efIhGefRC1BJbmCiAmGlHJS8At17Y4TD6eZ4rEstHdrYRli2zg0ajBqfTDIWFZujpGQadjnzDMKwpbnLR3ioOActyfHm5/bzfPxmqrnaAy2WBpUtzsLWCVktCMEhBSYmN8nr9l8bHqXqZgPsKPUAARVGGcJhpq61dXHryZPdu3BXw7JkPMDGBphmwWNKFpibXqTt3BlbgugriBg8hj1NwDqgIj8evrqtz7qmvL/b4fOOHv36lbQaDVigoyBzJyNCduX79lYOm2f2iuDi7hIynQACZ/vKlb4XXO0KRpKZLEPhem23eQswve3//aPbkJL0Lj+Zy2eRidTw921ogN3Qr2cmyYj5MV2fO5wtK7yCIWMx/ivsAsleqISmphoT0PEKIaPCnCCGbWNxyN5G1yGsl1TAZE+v+MPIIufqrpFMi4DNyHInGeY5BgrFKOb3XJ1N2JUtgo8hFZGquLqXEP3kr/i/gv4C/WoA6wZlB/EkBz5H3UjERTzwPQv+xj1O0h9IHRZ608oe/IwTfBBgAsyA11q+rcQsAAAAASUVORK5CYII=\" />%s:</h1><i>in %s</i><br/><pre>%s</pre>";
 typedef struct {
     const char* sTag;
     const char* eTag;
@@ -168,11 +168,26 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char* f
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     char        *errX;
     const char  *err = lua_tostring(thread->state, -1);
+    int x = 0;
+    char found[8], *lineX, *where;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     err = err ? err : "(nil)";
     errX = ap_escape_html(thread->r->pool, err);
-    ap_set_content_type(thread->r, "text/html;charset=ascii");
+    
+    for (x=1;x<2048;x++) {
+        sprintf(found, ":%u: ", x);
+        if ( (where = strstr(errX, found)) != 0) {
+            lineX = apr_pcalloc(thread->r->pool, strlen(errX) + 50);
+            if (lineX) {
+                sprintf(lineX, "On line <code style='font-weight: bold; color:#774411;'>%u:</code> %s", x, where + strlen(found));
+                errX = lineX;
+            }
+            break;
+        }
+    }
+    
+    ap_set_content_type(thread->r, "text/html; charset=ascii");
     filename = filename ? filename : "";
     ap_rprintf(thread->r, pLua_error_template, type, filename, errX ? errX : err);
 }
@@ -801,15 +816,25 @@ char *pLua_sha256(const char *digest, lua_thread* thread) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     sha256_context  ctx;
-    char            *ret = (char *) apr_pcalloc(thread->r->pool, 72);
-    unsigned char   sha256sum[33];
-    unsigned int    x;
+    char            *ret = (char *) apr_palloc(thread->r->pool, 72);
+    unsigned char   shasum[33];
+    unsigned char   Rshasum[33];
+    uint32_t*   shaX = 0;
+    int x = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
+    
+    
     sha256_starts(&ctx);
     sha256_update(&ctx, (uint8_t *) digest, strlen(digest));
-    sha256_finish(&ctx, sha256sum);
-    for (x = 0; x < 32; x++) sprintf((char *) (ret + (x * 2)), "%02x", sha256sum[x]);
+    sha256_finish(&ctx, shasum);
+    for (x=0;x<32;x+=4) {
+        Rshasum[x] = shasum[x+3];
+        Rshasum[x+1] = shasum[x+2];
+        Rshasum[x+2] = shasum[x+1];
+        Rshasum[x+3] = shasum[x];
+    }
+    shaX = (uint32_t *) Rshasum;
+    sprintf(ret,"%08x%08x%08x%08x%08x%08x%08x%08x", shaX[0], shaX[1], shaX[2], shaX[3],shaX[4], shaX[5], shaX[6], shaX[7]);
     return (ret);
 }
 
