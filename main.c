@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        27
+#define PLUA_VERSION        28
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -202,7 +202,7 @@ static int module_lua_panic(lua_State *L) {
     lua_thread  *thread = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 0);
     thread = (lua_thread *) lua_touserdata(L, -1);
     if (thread) {
         pLua_print_error(thread, "Lua PANIC", 0);
@@ -215,6 +215,16 @@ static int module_lua_panic(lua_State *L) {
     return (0);
 }
 
+static lua_thread* pLua_get_thread(lua_State* L) {
+    lua_thread* thread = 0;
+    /*~~~~~~~~~~~~~~~~~~~~*/
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, 0);
+    thread = (lua_thread *) lua_touserdata(L, -1);
+    if (thread) return thread;
+    else fprintf(stderr, "mod_pLua: Could not obtain the mod_pLua handle from the Lua registry index. This may be caused by mod_pLua being used with an incompatible Lua library.\r\n");
+    return 0;
+}
 /*
  =======================================================================================================================
     lua_add_code(char **buffer, const char *string): Adds chunks of code to the final buffer, expanding it in memory as
@@ -1053,8 +1063,7 @@ static int lua_sha256(lua_State *L) {
 
     luaL_checktype(L, 1, LUA_TSTRING);
     string = lua_tostring(L, 1);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         output = pLua_sha256((const char *) string, thread);
         lua_settop(L, 0);
@@ -1081,8 +1090,7 @@ static int lua_b64dec(lua_State *L) {
     luaL_checktype(L, 1, LUA_TSTRING);
     string = lua_tostring(L, 1);
     ilen = strlen(string);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         if (ilen) {
             output = apr_pcalloc(thread->r->pool, ilen);
@@ -1115,8 +1123,7 @@ static int lua_b64enc(lua_State *L) {
     luaL_checktype(L, 1, LUA_TSTRING);
     string = lua_tostring(L, 1);
     ilen = strlen(string);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         if (ilen) {
             output = pLua_encode_base64(string, ilen, thread);
@@ -1238,8 +1245,7 @@ static int lua_dbhandle(lua_State *L) {
     lua_thread* thread = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         luaL_checktype(L, 1, LUA_TTABLE);
         lua_rawgeti(L, 1, 0);
@@ -1274,8 +1280,7 @@ static int lua_dbdo(lua_State *L) {
     const char      *statement;
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         luaL_checktype(L, 1, LUA_TTABLE);
         luaL_checktype(L, 2, LUA_TSTRING);
@@ -1325,8 +1330,7 @@ static int lua_dbescape(lua_State *L) {
     const char  *escaped = 0;
     /*~~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         luaL_checktype(L, 1, LUA_TTABLE);
         luaL_checktype(L, 2, LUA_TSTRING);
@@ -1364,8 +1368,7 @@ static int lua_dbquery(lua_State *L) {
     const char      *statement;
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         luaL_checktype(L, 1, LUA_TTABLE);
         luaL_checktype(L, 2, LUA_TSTRING);
@@ -1430,7 +1433,9 @@ static int lua_dbquery(lua_State *L) {
 
     return (0);
 }
-
+#ifndef luaL_reg
+#define luaL_reg luaL_Reg
+#endif
 static const luaL_reg   db_methods[] =
 {
     { "escape", lua_dbescape },
@@ -1463,8 +1468,7 @@ static int lua_dbopen(lua_State *L) {
     apr_pool_t* pool = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         apr_pool_create(&pool, thread->bigPool);
         db = (dbStruct *) apr_pcalloc(pool, sizeof(dbStruct));//apr_pcalloc(thread->bigPool, sizeof(dbStruct));
@@ -1532,8 +1536,7 @@ static int lua_header(lua_State *L) {
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         luaL_checktype(L, 1, LUA_TSTRING);
         luaL_checktype(L, 2, LUA_TSTRING);
@@ -1568,8 +1571,7 @@ static int lua_echo(lua_State *L) {
     size_t      x;
     /*~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
 
         /*
@@ -1595,7 +1597,8 @@ static int lua_echo(lua_State *L) {
 
         lua_settop(L, 0);
     } else {
-
+		fprintf(stderr, "Couldn't get the lua handle :(\r\n");
+		fflush(stderr);
         /*
          * ap_rputs("Couldn't find our userdata :(",thread->r);
          */
@@ -1617,8 +1620,7 @@ static int lua_setContentType(lua_State *L) {
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         luaL_checktype(L, 1, LUA_TSTRING);
         el = lua_tostring(L, 1);
@@ -1648,8 +1650,7 @@ static int lua_setReturnCode(lua_State *L) {
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         rc = luaL_optint(L, 1, 0);
         lua_settop(L, 0);
@@ -1671,18 +1672,18 @@ static int lua_getEnv(lua_State *L) {
     lua_thread                  *thread;
     const apr_array_header_t    *fields;
     int                         i;
+	
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
-
+		
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         apr_table_entry_t   *e = 0;
         char                *pwd = getPWD(thread);
+		char luaVersion[32];
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-        
+		sprintf(luaVersion, "%u.%u", (LUA_VERSION_NUM/100), (LUA_VERSION_NUM) % (LUA_VERSION_NUM/100));
         lua_newtable(thread->state);
         fields = apr_table_elts(thread->r->headers_in);
         e = (apr_table_entry_t *) fields->elts;
@@ -1732,6 +1733,9 @@ static int lua_getEnv(lua_State *L) {
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Lua-State");
         lua_pushfstring(thread->state, "%p", thread->state);
+        lua_rawset(L, -3);
+		lua_pushstring(thread->state, "Lua-Version");
+        lua_pushstring(thread->state, luaVersion);
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Request-Method");
         lua_pushstring(thread->state, thread->r->method);
@@ -1868,8 +1872,7 @@ static int lua_compileTime(lua_State *L) {
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     lua_settop(L, 0);
     if (thread) {
         lua_newtable(L);
@@ -2094,8 +2097,7 @@ static int lua_parse_post(lua_State *L) {
     apr_off_t   size = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         lua_newtable(thread->state);
         if (thread->r->method_number != M_POST) {
@@ -2137,8 +2139,7 @@ static int lua_parse_get(lua_State *L) {
     lua_thread  *thread = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = pLua_get_thread(L);
     if (thread) {
         lua_newtable(thread->state);
         data = thread->r->args;
@@ -2158,8 +2159,8 @@ static int lua_includeFile(lua_State *L) {
     char compileRaw = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, 2);
-    thread = (lua_thread *) lua_touserdata(L, -1);
+    
+    thread = pLua_get_thread(L);
     if (thread) {
 
         /*~~~~~~~~~~~~~~~~~*/
@@ -2250,8 +2251,6 @@ void lua_init_state(lua_thread *thread, int x) {
     thread->state = luaL_newstate();
     thread->sessions = 0;
     L = (lua_State *) thread->state;
-    lua_pushinteger(L, 1);
-    luaL_ref(L, LUA_REGISTRYINDEX);
     luaL_openlibs(L);
     luaopen_debug(L);
     register_lua_functions(L);
@@ -2433,7 +2432,8 @@ static int plua_handler(request_rec *r) {
 
         /* Push the lua_thread struct onto the Lua registry (this should be changed to an init operation?) */
         lua_pushlightuserdata(L, l);
-        x = luaL_ref(L, LUA_REGISTRYINDEX);
+        lua_rawseti(L, LUA_REGISTRYINDEX, 0);
+        //x = luaL_ref(L, LUA_REGISTRYINDEX);
         
         // Check if we want to compile this file as a plain lua file or not
         xEnd = r->filename;
@@ -2486,7 +2486,7 @@ static int plua_handler(request_rec *r) {
         }
 
         /* Cleanup */
-        luaL_unref(L, LUA_REGISTRYINDEX, x);
+     //   luaL_unref(L, LUA_REGISTRYINDEX, 2);
         lua_release_state(l);
         return (rc);
     }

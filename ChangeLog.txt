@@ -1,3 +1,9 @@
+0.28:
+- Failure to obtain the correct lua_thread struct will now be printed to apache's error log.
+- Consolidated some data fetching throughout the code.
+- mod_pLua now works with both Lua 5.1 and 5.2!
+- Added a new environment key, "Lua-Version" which shows either 5.1 or 5.2 depending on the interpreter version
+
 0.27:
 - Error messages have been beautified and shows the file and line number that caused the error instead of '[[string "..."]]'.
 - The string.SHA256() function has been improved in speed significantly (2.5x speed improvement)
