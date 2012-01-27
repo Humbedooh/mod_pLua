@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        28
+#define PLUA_VERSION        29
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -64,6 +64,8 @@
 static int  LUA_STATES = 25;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 50;    /* Number of files to keep cached */
+static int  LUA_TIMEOUT = 0;   /* Maximum number of seconds a lua script may take (set to 0 to disable) */
+static uint32_t then = 0;
 typedef struct
 {
     char    filename[257];
@@ -81,7 +83,9 @@ typedef struct
     int             returnCode;
     int             youngest;
     int             written;
+    char            parsedPost;
     struct timespec t;
+    time_t runTime;
     pLua_files      *files;
     void            *domain;
 } lua_thread;
@@ -189,7 +193,7 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char* f
     
     ap_set_content_type(thread->r, "text/html; charset=ascii");
     filename = filename ? filename : "";
-    ap_rprintf(thread->r, pLua_error_template, type, filename, errX ? errX : err);
+    ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
 }
 
 /*
@@ -215,6 +219,7 @@ static int module_lua_panic(lua_State *L) {
     return (0);
 }
 
+
 static lua_thread* pLua_get_thread(lua_State* L) {
     lua_thread* thread = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
@@ -224,6 +229,17 @@ static lua_thread* pLua_get_thread(lua_State* L) {
     if (thread) return thread;
     else fprintf(stderr, "mod_pLua: Could not obtain the mod_pLua handle from the Lua registry index. This may be caused by mod_pLua being used with an incompatible Lua library.\r\n");
     return 0;
+}
+
+
+static void pLua_debug_hook(lua_State *L, lua_Debug *ar) {
+    lua_thread* thread;
+    then++;
+    if ((then % 200) == 0) {
+        time_t now = time(0);
+        thread = pLua_get_thread(L);
+        if (thread && (now - thread->runTime) > LUA_TIMEOUT) luaL_error(L, "The script took too long to execute (timed out)!\n", "the script...somewhere!");
+    }
 }
 /*
  =======================================================================================================================
@@ -239,8 +255,9 @@ void lua_add_code(char **buffer, const char *string) {
 
     if (!string || !strlen(string)) return;
     if (!b) {
-        b = (char *) calloc(1, strlen(string) + 1);
+        b = (char *) calloc(1, strlen(string) + 2);
         strcpy(b, string);
+        b[strlen(string)] = ' ';
     } else {
 
         /*~~~~~~~~~~~*/
@@ -248,14 +265,17 @@ void lua_add_code(char **buffer, const char *string) {
         /*~~~~~~~~~~~*/
 
         at = strlen(b);
-        b = (char *) realloc(b, at + strlen(string) + 2);
-        b[at + strlen(string) + 1] = 0;
+        b = (char *) realloc(b, at + strlen(string) + 3);
+        b[at + strlen(string) + 1] = ' ';
+        b[at + strlen(string) + 2] = 0;
         strcpy((char *) (b + at), string);
+        strcpy((char *) (b + at + strlen(string)), " ");
     }
 
     *buffer = b;
     return;
 }
+
 
 /*
  =======================================================================================================================
@@ -277,6 +297,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
     const char *sTag, *eTag;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+    
     while (at < inputSize) {
         for (i=0;pLua_file_tags[i].sTag != 0; i++) {
             matchStart = strstr((char *) input + at, pLua_file_tags[i].sTag);
@@ -2098,17 +2119,18 @@ static int lua_parse_post(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
     thread = pLua_get_thread(L);
+    lua_newtable(L);
     if (thread) {
-        lua_newtable(thread->state);
-        if (thread->r->method_number != M_POST) {
-            return (0);
+        if (thread->r->method_number != M_POST || thread->parsedPost == 1) {
+            return (1);
         }
+        thread->parsedPost = 1;
 
         memset(multipart, 0, 256);
         type = apr_table_get(thread->r->headers_in, "Content-Type");
         if (sscanf(type, "multipart/form-data; boundary=%250c", multipart) == 1) {
             if (util_read(thread->r, &data, &size) != OK) {
-                return (0);
+                return (1);
             }
 
             parse_multipart(thread, data, multipart, size);
@@ -2117,15 +2139,15 @@ static int lua_parse_post(lua_State *L) {
 
         if (strcasecmp(type, DEFAULT_ENCTYPE) == 0) {
             if (util_read(thread->r, &data, &size) != OK) {
-                return (0);
+                return (1);
             }
 
             parse_urlencoded(thread, data);
             return (1);
         }
 
-        return (0);
-    } else return (0);
+        return (1);
+    } else return (1);
 }
 
 /*
@@ -2140,11 +2162,14 @@ static int lua_parse_get(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~*/
 
     thread = pLua_get_thread(L);
+    lua_settop(L, 0);
+    lua_newtable(L);
     if (thread) {
-        lua_newtable(thread->state);
         data = thread->r->args;
-        return (parse_urlencoded(thread, data));
-    } else return (0);
+        parse_urlencoded(thread, data);
+        return 1;
+    }
+    return 1;
 }
 
 /*
@@ -2427,8 +2452,9 @@ static int plua_handler(request_rec *r) {
         SetCurrentDirectoryA(getPWD(l));
 #endif
 
-        /* Set default return code to OK (200-ish) */
+        /* Set default return code to OK (200-ish) and reset the parse counter */
         l->returnCode = OK;
+        l->parsedPost = 0;
 
         /* Push the lua_thread struct onto the Lua registry (this should be changed to an init operation?) */
         lua_pushlightuserdata(L, l);
@@ -2469,7 +2495,11 @@ static int plua_handler(request_rec *r) {
             l->typeSet = 0;
             rc = 0;
 
-            /* Run the compiled code. */
+            /* Set timeout and run the compiled code. */
+            if (LUA_TIMEOUT > 0) {
+                l->runTime = time(0);
+                lua_sethook(L, pLua_debug_hook, LUA_MASKLINE | LUA_MASKCOUNT, 1);
+            }
             rc = lua_pcall(L, 0, LUA_MULTRET, 0);
 
             /* DId we get a run-time error? */
@@ -2482,6 +2512,10 @@ static int plua_handler(request_rec *r) {
                 if (l->typeSet == 0) ap_set_content_type(r, "text/html");
                 rc = l->returnCode;
                 if (PLUA_DEBUG) ap_rprintf(r, "<b>Compiled and ran fine from index %u</b>", rc);
+            }
+            if (LUA_TIMEOUT > 0) {
+                lua_sethook(L, pLua_debug_hook, 0, 0);
+                
             }
         }
 
@@ -2576,6 +2610,16 @@ const char *pLua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg) {
     return (NULL);
 }
 
+const char *pLua_set_Timeout(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
+    int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
+    LUA_TIMEOUT = x > 0 ? x : 0;
+    return (NULL);
+}
+
 /*
  =======================================================================================================================
     pLuaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
@@ -2604,6 +2648,7 @@ static const command_rec        my_directives[] =
     AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
     AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
     AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file"),
+    AP_INIT_TAKE1("pLuaTimeout", pLua_set_Timeout, NULL, OR_ALL, "Sets the maximum number of seconds a pLua script may take to execute. Set to 0 to disable."),
     { NULL }
 };
 module AP_MODULE_DECLARE_DATA   plua_module = { STANDARD20_MODULE_STUFF, NULL, NULL, NULL, NULL, my_directives, register_hooks };

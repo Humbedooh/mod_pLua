@@ -1,3 +1,9 @@
+0.29:
+- parseGet and parsePost will now return a table regardless of whether data exists
+- parsePost can only be called once now
+- using html right after a closing tag will no longer trigger an error
+- mod_pLua now has a new directive, pLuaTimeout, for setting an optional timeout in seconds for scripts
+
 0.28:
 - Failure to obtain the correct lua_thread struct will now be printed to apache's error log.
 - Consolidated some data fetching throughout the code.
