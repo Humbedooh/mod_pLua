@@ -37,7 +37,8 @@ bin_PROGRAMS = mod_plua.so$(EXEEXT)
 subdir = .
 DIST_COMMON = $(am__configure_deps) $(nobase_dist_foomodule_DATA) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(top_srcdir)/configure depcomp install-sh missing
+	$(top_srcdir)/configure COPYING INSTALL depcomp install-sh \
+	missing
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -49,7 +50,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(foomoduledir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_mod_plua_so_OBJECTS = mod_plua_so-main.$(OBJEXT)
+am_mod_plua_so_OBJECTS = mod_plua_so-mod_plua.$(OBJEXT)
 mod_plua_so_OBJECTS = $(am_mod_plua_so_OBJECTS)
 mod_plua_so_DEPENDENCIES =
 mod_plua_so_LINK = $(CCLD) $(mod_plua_so_CFLAGS) $(CFLAGS) \
@@ -128,8 +129,8 @@ LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LTLIBOBJS = @LTLIBOBJS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LIBS = @LUA_LIBS@
+LuaJIT_CFLAGS = @LuaJIT_CFLAGS@
+LuaJIT_LIBS = @LuaJIT_LIBS@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
 OBJEXT = @OBJEXT@
@@ -192,10 +193,10 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 instdir = /usr/lib/apache2/modules
-mod_plua_so_SOURCES = main.c
-mod_plua_so_LDFLAGS = -shared -fPIC @LDFLAGS@ @LUA_LIBS@ @APR_LIBS@
+mod_plua_so_SOURCES = mod_plua.c
+mod_plua_so_LDFLAGS = -shared -fPIC @LDFLAGS@ @APR_LIBS@
 mod_plua_so_CFLAGS = -fPIC @CFLAGS@ -I/usr/include/apr-1.0
-mod_plua_so_LDADD = -lapr-1
+mod_plua_so_LDADD = -lapr-1 -lluajit-5.1
 foomoduledir = /usr/lib/apache2/modules
 nobase_dist_foomodule_DATA = mod_plua.so
 all: all-am
@@ -283,7 +284,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_plua_so-main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_plua_so-mod_plua.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -299,19 +300,19 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
 
-mod_plua_so-main.o: main.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mod_plua_so_CFLAGS) $(CFLAGS) -MT mod_plua_so-main.o -MD -MP -MF $(DEPDIR)/mod_plua_so-main.Tpo -c -o mod_plua_so-main.o `test -f 'main.c' || echo '$(srcdir)/'`main.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/mod_plua_so-main.Tpo $(DEPDIR)/mod_plua_so-main.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='main.c' object='mod_plua_so-main.o' libtool=no @AMDEPBACKSLASH@
+mod_plua_so-mod_plua.o: mod_plua.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mod_plua_so_CFLAGS) $(CFLAGS) -MT mod_plua_so-mod_plua.o -MD -MP -MF $(DEPDIR)/mod_plua_so-mod_plua.Tpo -c -o mod_plua_so-mod_plua.o `test -f 'mod_plua.c' || echo '$(srcdir)/'`mod_plua.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/mod_plua_so-mod_plua.Tpo $(DEPDIR)/mod_plua_so-mod_plua.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mod_plua.c' object='mod_plua_so-mod_plua.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mod_plua_so_CFLAGS) $(CFLAGS) -c -o mod_plua_so-main.o `test -f 'main.c' || echo '$(srcdir)/'`main.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mod_plua_so_CFLAGS) $(CFLAGS) -c -o mod_plua_so-mod_plua.o `test -f 'mod_plua.c' || echo '$(srcdir)/'`mod_plua.c
 
-mod_plua_so-main.obj: main.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mod_plua_so_CFLAGS) $(CFLAGS) -MT mod_plua_so-main.obj -MD -MP -MF $(DEPDIR)/mod_plua_so-main.Tpo -c -o mod_plua_so-main.obj `if test -f 'main.c'; then $(CYGPATH_W) 'main.c'; else $(CYGPATH_W) '$(srcdir)/main.c'; fi`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/mod_plua_so-main.Tpo $(DEPDIR)/mod_plua_so-main.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='main.c' object='mod_plua_so-main.obj' libtool=no @AMDEPBACKSLASH@
+mod_plua_so-mod_plua.obj: mod_plua.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mod_plua_so_CFLAGS) $(CFLAGS) -MT mod_plua_so-mod_plua.obj -MD -MP -MF $(DEPDIR)/mod_plua_so-mod_plua.Tpo -c -o mod_plua_so-mod_plua.obj `if test -f 'mod_plua.c'; then $(CYGPATH_W) 'mod_plua.c'; else $(CYGPATH_W) '$(srcdir)/mod_plua.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/mod_plua_so-mod_plua.Tpo $(DEPDIR)/mod_plua_so-mod_plua.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mod_plua.c' object='mod_plua_so-mod_plua.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mod_plua_so_CFLAGS) $(CFLAGS) -c -o mod_plua_so-main.obj `if test -f 'main.c'; then $(CYGPATH_W) 'main.c'; else $(CYGPATH_W) '$(srcdir)/main.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mod_plua_so_CFLAGS) $(CFLAGS) -c -o mod_plua_so-mod_plua.obj `if test -f 'mod_plua.c'; then $(CYGPATH_W) 'mod_plua.c'; else $(CYGPATH_W) '$(srcdir)/mod_plua.c'; fi`
 install-nobase_dist_foomoduleDATA: $(nobase_dist_foomodule_DATA)
 	@$(NORMAL_INSTALL)
 	test -z "$(foomoduledir)" || $(MKDIR_P) "$(DESTDIR)$(foomoduledir)"
