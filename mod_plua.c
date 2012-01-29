@@ -65,6 +65,7 @@ static int  LUA_STATES = 25;    /* Keep 50 states open */
 static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int  LUA_FILES = 50;    /* Number of files to keep cached */
 static int  LUA_TIMEOUT = 0;   /* Maximum number of seconds a lua script may take (set to 0 to disable) */
+static int  LUA_PERROR = 1;
 static uint32_t then = 0;
 typedef struct
 {
@@ -84,6 +85,7 @@ typedef struct
     int             youngest;
     int             written;
     char            parsedPost;
+    int             errorLevel;
     struct timespec t;
     time_t runTime;
     pLua_files      *files;
@@ -175,7 +177,7 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char* f
     int x = 0;
     char found[8], *lineX, *where;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
+    if (thread->errorLevel == 0) return;
     err = err ? err : "(nil)";
     errX = ap_escape_html(thread->r->pool, err);
     
@@ -194,6 +196,7 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char* f
     ap_set_content_type(thread->r, "text/html; charset=ascii");
     filename = filename ? filename : "";
     ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
+    fprintf(stderr, "mod_plua: error in %s; %s\r\n", filename, err);
 }
 
 /*
@@ -319,9 +322,9 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 X = matchStart[0];
                 matchStart[0] = 0;
 #ifdef _WIN32
-                _snprintf_c(test, matchStart - input + 14, "echo([=[%s]=]);", input + at);
+                _snprintf_c(test, matchStart - input + 18, "echo([===[%s]===]);", input + at);
 #else
-                snprintf(test, matchStart - input + 14, "echo([=[%s]=]);", input + at);
+                snprintf(test, matchStart - input + 18, "echo([===[%s]===]);", input + at);
 #endif
                 matchStart[0] = X;
 
@@ -1658,6 +1661,22 @@ static int lua_setContentType(lua_State *L) {
     return (0);
 }
 
+
+static int lua_setErrorLevel(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~*/
+    int level = 0;
+    lua_thread  *thread;
+    /*~~~~~~~~~~~~~~~~*/
+
+    luaL_checktype(L, 1, LUA_TBOOLEAN);
+    level = lua_toboolean(L, 1);
+    thread = pLua_get_thread(L);
+    if (thread) {
+        thread->errorLevel = level;
+    }
+    return 0;
+}
 /*
  =======================================================================================================================
  * lua_setReturnCode(lua_State *L):
@@ -2238,6 +2257,7 @@ static const luaL_reg   Global_methods[] =
     { "setReturnCode", lua_setReturnCode },
     { "include", lua_includeFile },
     { "dbopen", lua_dbopen },
+    { "showErrors", lua_setErrorLevel },
     { 0, 0 }
 };
 static const luaL_reg   String_methods[] = { { "SHA256", lua_sha256 }, { "decode64", lua_b64dec }, { "encode64", lua_b64enc }, { 0, 0 } };
@@ -2428,7 +2448,7 @@ static int plua_handler(request_rec *r) {
         ap_rputs("<html><head><title>Lua_HTML: Error</title></head>", r);
         ap_rprintf(r, "<body><h1>No such file: %s</h1></body></html>", r->unparsed_uri);
         return (HTTP_NOT_FOUND);
-
+        
         /* Else start processing the request */
     } else {
 
@@ -2446,6 +2466,7 @@ static int plua_handler(request_rec *r) {
         /* Set up the lua_thread struct and change to the current directory. */
         l->r = r;
         l->written = 0;
+        l->errorLevel = LUA_PERROR;
 #ifndef _WIN32
         rc = chdir(getPWD(l));
 #else
@@ -2620,6 +2641,16 @@ const char *pLua_set_Timeout(cmd_parms *cmd, void *cfg, const char *arg) {
     return (NULL);
 }
 
+const char *pLua_set_Logging(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
+    int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
+    LUA_PERROR = x > 0 ? x : 0;
+    return (NULL);
+}
+
 /*
  =======================================================================================================================
     pLuaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
@@ -2649,6 +2680,7 @@ static const command_rec        my_directives[] =
     AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
     AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file"),
     AP_INIT_TAKE1("pLuaTimeout", pLua_set_Timeout, NULL, OR_ALL, "Sets the maximum number of seconds a pLua script may take to execute. Set to 0 to disable."),
+    AP_INIT_TAKE1("pLuaError", pLua_set_Logging, NULL, OR_ALL, "Sets the error logging level. Set to 0 to disable errors, 1 to enable."),
     { NULL }
 };
 module AP_MODULE_DECLARE_DATA   plua_module = { STANDARD20_MODULE_STUFF, NULL, NULL, NULL, NULL, my_directives, register_hooks };

@@ -1,3 +1,8 @@
+0.30:
+- Changed the html output echo function to use [==[ ]==] enclosures instead, to avoid common nesting errors.
+- Added the pLuaError directive for setting whether to output errors to the screen or not.
+- Added the showErrors(true/false) Lua call to set individual script error levels.
+
 0.29:
 - parseGet and parsePost will now return a table regardless of whether data exists
 - parsePost can only be called once now
