@@ -1,7 +1,14 @@
+0.31:
+- Added mutex support for Windows packages
+- Updated the mod_pLua example page (test.plua)
+- New pLua logo! I hope you like it :)
+- Added a last-minute resort to bundle up all excess vhosts into one state pool if no free pools are available
+- Did some rewriting to prepare for a dynamic allocation of new domain pools
+
 0.30:
-- Changed the html output echo function to use [==[ ]==] enclosures instead, to avoid common nesting errors.
-- Added the pLuaError directive for setting whether to output errors to the screen or not.
-- Added the showErrors(true/false) Lua call to set individual script error levels.
+- Changed the html output echo function to use [==[ ]==] enclosures instead, to avoid common nesting errors
+- Added the pLuaError directive for setting whether to output errors to the screen or not
+- Added the showErrors(true/false) Lua call to set individual script error levels
 
 0.29:
 - parseGet and parsePost will now return a table regardless of whether data exists

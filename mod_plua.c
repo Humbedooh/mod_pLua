@@ -11,17 +11,18 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        30
+#define PLUA_VERSION        31
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
 #define MAX_MULTIPLES       25
 #define PLUA_DEBUG          0
 #define PLUA_LSTRING        1
-#define PLUA_DOMAINS        50
+#define PLUA_DOMAINS        25
 #ifdef _WIN32
 #   define sleep(a)    Sleep(a * 1000)
 #endif
+
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -44,16 +45,34 @@
 #   include <apache2/http_protocol.h>
 #   include <apache2/http_config.h>
 #   include <unistd.h>
+#include <pthread.h>
 #endif
+
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
-#include <pthread.h>
+
 #include <time.h>
 #include <stdint.h>
 #ifndef R_OK
 #   define R_OK    0x04 /* test for read permission */
 #endif
+
+#ifdef _WIN32
+	typedef HANDLE pthread_mutex_t;
+	#ifndef HAVE_STRUCT_TIMESPEC
+	#define HAVE_STRUCT_TIMESPEC
+	#ifndef _TIMESPEC_DEFINED
+	#define _TIMESPEC_DEFINED
+	struct timespec {
+			time_t tv_sec;
+			long tv_nsec;
+	};
+	#endif /* _TIMESPEC_DEFINED */
+	#endif /* HAVE_STRUCT_TIMESPEC */
+
+#endif
+
 
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -61,11 +80,12 @@
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
-static int  LUA_STATES = 25;    /* Keep 50 states open */
-static int  LUA_RUNS = 500;     /* Restart a state after 500 sessions */
-static int  LUA_FILES = 50;    /* Number of files to keep cached */
-static int  LUA_TIMEOUT = 0;   /* Maximum number of seconds a lua script may take (set to 0 to disable) */
-static int  LUA_PERROR = 1;
+static int      LUA_STATES = 25;    /* Keep 50 states open */
+static int      LUA_RUNS = 500;     /* Restart a state after 500 sessions */
+static int      LUA_FILES = 50;     /* Number of files to keep cached */
+static int      LUA_TIMEOUT = 0;    /* Maximum number of seconds a lua script may take (set to 0 to disable) */
+static int      LUA_PERROR = 1;
+static apr_pool_t* LUA_BIGPOOL = 0;
 static uint32_t then = 0;
 typedef struct
 {
@@ -87,18 +107,17 @@ typedef struct
     char            parsedPost;
     int             errorLevel;
     struct timespec t;
-    time_t runTime;
+    time_t          runTime;
     pLua_files      *files;
     void            *domain;
 } lua_thread;
-
-typedef struct {
-    lua_thread  *states;
+typedef struct
+{
+    lua_thread      *states;
     pthread_mutex_t mutex;
-    char         domain[512];
-    apr_pool_t* pool;
+    char            domain[512];
+    apr_pool_t      *pool;
 } lua_domain;
-
 typedef struct
 {
     const char  *key;
@@ -106,14 +125,13 @@ typedef struct
     int         sizes[MAX_MULTIPLES];
     const char  *values[MAX_MULTIPLES];
 } formdata;
-static lua_domain*   pLua_domains;
-
+static lua_domain   *pLua_domains;
 typedef struct
 {
     apr_dbd_t               *handle;
     const apr_dbd_driver_t  *driver;
-    int                      alive;
-    apr_pool_t         *pool;
+    int                     alive;
+    apr_pool_t              *pool;
 } dbStruct;
 #ifndef PRIx32
 #   define PRIx32  "x"
@@ -144,46 +162,66 @@ typedef struct
     char    result;
     int     stepcount;
 } base64_encodestate;
-static const char   *pLua_error_template = "<h1><img alt=\"\" src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA3BJREFUeNrsl0tME1EUhs+00we0WCxtpVhAoBqa8EjEIPjCKASjoqAujRoXxIWJLjTuDAsXLpQQ36/owrBQg0uNGjTgoyFRaxogiqDRgrYRUx5tZ+i8PENHUyfFpEwVYzzJl9vczp3733POvecOIQgCzKWpYI6NnOkPgmhZjc1BxIqwMzwm9k8gfqQXcUstJ39QEFqSE4C2AdmW5IJEQT3IOeRGIiEpCoEgkXBBK5F25BZim3UIEsxAIf0AvECSKk6lUkVZluexz4iJnIvYZOtpQszIJiQ8GwFye4cerrHbM8MVFQs1paXW7TTN7dTrSWpsjL7W0dE3EQyGDzEMlGEGfR9TgxxBjqZAACuUldkjq1Ytsvf1BW6fOPF0OccJBI9OyM01rdu4cck9dNqO9nbPFYYh1sQNbEYuIJ8U5IAYDTW3eXNx1sDAaHdX12AVw8Qm37KlGF682Kdtbq5oyM/PvFxUlHUAcy8YN3gBsl5xEhqN2vDUFHuss3PQCaCVejlobHSB1WqAqqpcCIWo1Vu3utZpNORd2fAaxQLwwNS73R8bzGYDmM1pPyLY1uaGBw+GoKOjH86efa7S6zV7TKa0D7IcdijOAZ4XdIFAxFRZ6YBAIAyRCAM5ORnw5UsIWlufQF7efIhGefRC1BJbmCiAmGlHJS8At17Y4TD6eZ4rEstHdrYRli2zg0ajBqfTDIWFZujpGQadjnzDMKwpbnLR3ioOActyfHm5/bzfPxmqrnaAy2WBpUtzsLWCVktCMEhBSYmN8nr9l8bHqXqZgPsKPUAARVGGcJhpq61dXHryZPdu3BXw7JkPMDGBphmwWNKFpibXqTt3BlbgugriBg8hj1NwDqgIj8evrqtz7qmvL/b4fOOHv36lbQaDVigoyBzJyNCduX79lYOm2f2iuDi7hIynQACZ/vKlb4XXO0KRpKZLEPhem23eQswve3//aPbkJL0Lj+Zy2eRidTw921ogN3Qr2cmyYj5MV2fO5wtK7yCIWMx/ivsAsleqISmphoT0PEKIaPCnCCGbWNxyN5G1yGsl1TAZE+v+MPIIufqrpFMi4DNyHInGeY5BgrFKOb3XJ1N2JUtgo8hFZGquLqXEP3kr/i/gv4C/WoA6wZlB/EkBz5H3UjERTzwPQv+xj1O0h9IHRZ608oe/IwTfBBgAsyA11q+rcQsAAAAASUVORK5CYII=\" />%s:</h1><i>in %s</i><br/><pre>%s</pre>";
-typedef struct {
-    const char* sTag;
-    const char* eTag;
+static const char   *pLua_error_template = "<h1><img alt=\"\" src=\"data:image/png;base64,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\" />%s:</h1><i>in %s</i><br/><pre>%s</pre>";
+typedef struct
+{
+    const char  *sTag;
+    const char  *eTag;
 } pLua_tags;
-static const pLua_tags pLua_file_tags[] = {
-    {"<?lua", "?>"},
-    {"<?", "?>"},
-    {0,0}
-};
-#define PLUA_RAW_TYPES 32
-static char* pLua_rawTypes[PLUA_RAW_TYPES];
+static const pLua_tags  pLua_file_tags[] = { { "<?lua", "?>" }, { "<?", "?>" }, { 0, 0 } };
+#define PLUA_RAW_TYPES  32
+static char             *pLua_rawTypes[PLUA_RAW_TYPES];
+
+
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     mod_pLua compiler and parser functions
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
+#ifdef _WIN32
+static void pthread_mutex_lock(HANDLE mutex) {
+        DWORD dwWaitResult = WaitForSingleObject(mutex, INFINITE);
+        return;
+}
+
+static void pthread_mutex_unlock(HANDLE mutex) {
+        ReleaseMutex(mutex);
+        return;
+}
+
+static void pthread_mutex_init(HANDLE* mutex) {
+    *mutex = CreateMutex( 
+            NULL,              // default security attributes
+            FALSE,             // initially not owned
+            NULL);             // unnamed mutex
+    return;
+}
+#endif
+
 /*
  =======================================================================================================================
- * pLua_print_error(lua_thread *thread, const char *type, const char* filename):
- * Prints out a mod_pLua error message of type _type_ to the remote client.
- * This does not necessarilly halt any ongoing execution of code.
+    pLua_print_error(lua_thread *thread, const char *type, const char* filename): Prints out a mod_pLua error message
+    of type _type_ to the remote client. This does not necessarilly halt any ongoing execution of code.
  =======================================================================================================================
  */
-static void pLua_print_error(lua_thread *thread, const char *type, const char* filename) {
+static void pLua_print_error(lua_thread *thread, const char *type, const char *filename) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     char        *errX;
     const char  *err = lua_tostring(thread->state, -1);
-    int x = 0;
-    char found[8], *lineX, *where;
+    int         x = 0;
+    char        found[8],
+                *lineX,
+                *where;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
     if (thread->errorLevel == 0) return;
     err = err ? err : "(nil)";
     errX = ap_escape_html(thread->r->pool, err);
-    
-    for (x=1;x<2048;x++) {
+    for (x = 1; x < 2048; x++) {
         sprintf(found, ":%u: ", x);
-        if ( (where = strstr(errX, found)) != 0) {
+        if ((where = strstr(errX, found)) != 0) {
             lineX = apr_pcalloc(thread->r->pool, strlen(errX) + 50);
             if (lineX) {
                 sprintf(lineX, "On line <code style='font-weight: bold; color:#774411;'>%u:</code> %s", x, where + strlen(found));
@@ -192,7 +230,7 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char* f
             break;
         }
     }
-    
+
     ap_set_content_type(thread->r, "text/html; charset=ascii");
     filename = filename ? filename : "";
     ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
@@ -201,6 +239,7 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char* f
 
 /*
  =======================================================================================================================
+ * module_lua_panic(lua_State *L): The Lua panic handler.
  =======================================================================================================================
  */
 static int module_lua_panic(lua_State *L) {
@@ -214,7 +253,11 @@ static int module_lua_panic(lua_State *L) {
     if (thread) {
         pLua_print_error(thread, "Lua PANIC", 0);
     } else {
-        const char *el = lua_tostring(L, 1);
+
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        const char  *el = lua_tostring(L, 1);
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
         printf("Lua PANIC: %s\n", el);
     }
 
@@ -222,28 +265,53 @@ static int module_lua_panic(lua_State *L) {
     return (0);
 }
 
+/*
+ =======================================================================================================================
+ * pLua_get_thread(lua_State *L): Gets the pLua thread handle from the Lua stack.
+ =======================================================================================================================
+ */
+static lua_thread *pLua_get_thread(lua_State *L) {
 
-static lua_thread* pLua_get_thread(lua_State* L) {
-    lua_thread* thread = 0;
+    /*~~~~~~~~~~~~~~~~~~~~*/
+    lua_thread  *thread = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 0);
     thread = (lua_thread *) lua_touserdata(L, -1);
-    if (thread) return thread;
-    else fprintf(stderr, "mod_pLua: Could not obtain the mod_pLua handle from the Lua registry index. This may be caused by mod_pLua being used with an incompatible Lua library.\r\n");
-    return 0;
+    if (thread) return (thread);
+    else {
+        fprintf(stderr,
+                "mod_pLua: Could not obtain the mod_pLua handle from the Lua registry index. This may be caused by mod_pLua being used with an incompatible Lua library.\r\n");
+    }
+
+    return (0);
 }
 
-
+/*
+ =======================================================================================================================
+ * pLua_debug_hook(lua_State *L, lua_Debug *ar): The debug hook for monitoring execution time and, in case
+ * a timeout limit is set, aborting the script if it exceeds this limit.
+ =======================================================================================================================
+ */
 static void pLua_debug_hook(lua_State *L, lua_Debug *ar) {
-    lua_thread* thread;
+
+    /*~~~~~~~~~~~~~~~~*/
+    lua_thread  *thread;
+    /*~~~~~~~~~~~~~~~~*/
+
     then++;
     if ((then % 200) == 0) {
-        time_t now = time(0);
+
+        /*~~~~~~~~~~~~~~~~~~*/
+        time_t  now = time(0);
+        /*~~~~~~~~~~~~~~~~~~*/
+
         thread = pLua_get_thread(L);
-        if (thread && (now - thread->runTime) > LUA_TIMEOUT) luaL_error(L, "The script took too long to execute (timed out)!\n", "the script...somewhere!");
+        if (thread && (now - thread->runTime) > LUA_TIMEOUT)
+            luaL_error(L, "The script took too long to execute (timed out)!\n", "the script...somewhere!");
     }
 }
+
 /*
  =======================================================================================================================
     lua_add_code(char **buffer, const char *string): Adds chunks of code to the final buffer, expanding it in memory as
@@ -274,11 +342,10 @@ void lua_add_code(char **buffer, const char *string) {
         strcpy((char *) (b + at), string);
         strcpy((char *) (b + at + strlen(string)), " ");
     }
-
+    
     *buffer = b;
     return;
 }
-
 
 /*
  =======================================================================================================================
@@ -288,21 +355,21 @@ void lua_add_code(char **buffer, const char *string) {
  */
 int lua_parse_file(lua_thread *thread, char *input) {
 
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-    int     rc = 0;
-    char    *output = 0;
-    char    *matchStart,
-            *matchEnd;
-    size_t  at = 0;
-    size_t  inputSize = strlen(input);
-    char    X = 0;
-    int i = 0;
-    const char *sTag, *eTag;
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    int         rc = 0;
+    char        *output = 0;
+    char        *matchStart,
+                *matchEnd;
+    size_t      at = 0;
+    size_t      inputSize = strlen(input);
+    char        X = 0;
+    int         i = 0;
+    const char  *sTag,
+                *eTag;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    
     while (at < inputSize) {
-        for (i=0;pLua_file_tags[i].sTag != 0; i++) {
+        for (i = 0; pLua_file_tags[i].sTag != 0; i++) {
             matchStart = strstr((char *) input + at, pLua_file_tags[i].sTag);
             if (matchStart) {
                 sTag = pLua_file_tags[i].sTag;
@@ -310,6 +377,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 break;
             }
         }
+
         if (matchStart) {
 
             /* Add any preceding raw html as an echo */
@@ -445,7 +513,7 @@ int lua_compile_file(lua_thread *thread, const char *filename, struct stat *stat
 
         /*
          * Straight forward;
-         * Read the file.
+         * Read the file
          */
         input = fopen(filename, "r");
         if (input) {
@@ -460,10 +528,10 @@ int lua_compile_file(lua_thread *thread, const char *filename, struct stat *stat
             /* Hand the file data over to lua_parse_file and preprocess the html and code. */
             if (!rawCompile) {
                 rc = lua_parse_file(thread, iBuffer);
-            }
-            else {
+            } else {
                 rc = luaL_loadstring(thread->state, iBuffer ? iBuffer : "echo('no input speficied');");
             }
+
             free(iBuffer);
 
             /* Did we encounter a syntax error while parsing? (I think not, how could we?) */
@@ -846,29 +914,29 @@ void sha256_finish(sha256_context *ctx, uint8_t digest[32]) {
  =======================================================================================================================
  =======================================================================================================================
  */
-char *pLua_sha256(const char *digest, lua_thread* thread) {
+char *pLua_sha256(const char *digest, lua_thread *thread) {
 
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     sha256_context  ctx;
     char            *ret = (char *) apr_palloc(thread->r->pool, 72);
     unsigned char   shasum[33];
     unsigned char   Rshasum[33];
-    uint32_t*   shaX = 0;
-    int x = 0;
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-    
-    
+    uint32_t        *shaX = 0;
+    int             x = 0;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
     sha256_starts(&ctx);
     sha256_update(&ctx, (uint8_t *) digest, strlen(digest));
     sha256_finish(&ctx, shasum);
-    for (x=0;x<32;x+=4) {
-        Rshasum[x] = shasum[x+3];
-        Rshasum[x+1] = shasum[x+2];
-        Rshasum[x+2] = shasum[x+1];
-        Rshasum[x+3] = shasum[x];
+    for (x = 0; x < 32; x += 4) {
+        Rshasum[x] = shasum[x + 3];
+        Rshasum[x + 1] = shasum[x + 2];
+        Rshasum[x + 2] = shasum[x + 1];
+        Rshasum[x + 3] = shasum[x];
     }
+
     shaX = (uint32_t *) Rshasum;
-    sprintf(ret,"%08x%08x%08x%08x%08x%08x%08x%08x", shaX[0], shaX[1], shaX[2], shaX[3],shaX[4], shaX[5], shaX[6], shaX[7]);
+    sprintf(ret, "%08x%08x%08x%08x%08x%08x%08x%08x", shaX[0], shaX[1], shaX[2], shaX[3], shaX[4], shaX[5], shaX[6], shaX[7]);
     return (ret);
 }
 
@@ -938,12 +1006,12 @@ int pLua_unbase64(unsigned char *dest, const unsigned char *src, size_t srclen) 
  =======================================================================================================================
  =======================================================================================================================
  */
-char *pLua_decode_base64(const char *src, lua_thread* thread) {
+char *pLua_decode_base64(const char *src, lua_thread *thread) {
 
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     size_t  ilen = strlen(src);
     char    *output = (char *) apr_pcalloc(thread->r->pool, ilen);
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     pLua_unbase64((unsigned char *) output, (const unsigned char *) src, ilen);
     return (output);
@@ -1049,7 +1117,7 @@ int base64_encode_blockend(char *code_out, base64_encodestate *state_in) {
  =======================================================================================================================
  =======================================================================================================================
  */
-char *pLua_encode_base64(const char *src, size_t len, lua_thread* thread) {
+char *pLua_encode_base64(const char *src, size_t len, lua_thread *thread) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     base64_encodestate  state;
@@ -1094,7 +1162,8 @@ static int lua_sha256(lua_State *L) {
         lua_pushstring(L, output);
         return (1);
     }
-    return 0;
+
+    return (0);
 }
 
 /*
@@ -1128,7 +1197,8 @@ static int lua_b64dec(lua_State *L) {
 
         return (1);
     }
-    return 0;
+
+    return (0);
 }
 
 /*
@@ -1143,7 +1213,7 @@ static int lua_b64enc(lua_State *L) {
     size_t      ilen;
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
-    
+
     luaL_checktype(L, 1, LUA_TSTRING);
     string = lua_tostring(L, 1);
     ilen = strlen(string);
@@ -1160,7 +1230,8 @@ static int lua_b64enc(lua_State *L) {
 
         return (1);
     }
-    return 0;
+
+    return (0);
 }
 
 /*
@@ -1187,8 +1258,7 @@ static int lua_fileexists(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_unlink(lua_State *L):
- * file.unlink(filename): Unlinks (deletes) a given file.
+    lua_unlink(lua_State *L): file.unlink(filename): Unlinks (deletes) a given file.
  =======================================================================================================================
  */
 static int lua_unlink(lua_State *L) {
@@ -1209,8 +1279,7 @@ static int lua_unlink(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_rename(lua_State *L):
- * file.rename(oldfile, newfile): Renames/moves a file to a new location.
+    lua_rename(lua_State *L): file.rename(oldfile, newfile): Renames/moves a file to a new location.
  =======================================================================================================================
  */
 static int lua_rename(lua_State *L) {
@@ -1234,8 +1303,7 @@ static int lua_rename(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_dbclose(lua_State *L):
- * db:close(): Closes an open database connection.
+    lua_dbclose(lua_State *L): db:close(): Closes an open database connection.
  =======================================================================================================================
  */
 static int lua_dbclose(lua_State *L) {
@@ -1256,18 +1324,24 @@ static int lua_dbclose(lua_State *L) {
         db->alive = 0;
         apr_pool_destroy(db->pool);
     }
-   
+
     lua_settop(L, 0);
     lua_pushnumber(L, rc);
     return (1);
 }
 
+/*
+ =======================================================================================================================
+ * lua_dbhandle(lua_State *L): db:active(): Returns true if the connection to the db is still active, false otherwise.
+ =======================================================================================================================
+ */
 static int lua_dbhandle(lua_State *L) {
-    /*~~~~~~~~~~~~~~~~~~~~*/
+
+    /*~~~~~~~~~~~~~~~~~~~~~~~~*/
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
-    lua_thread* thread = 0;
-    /*~~~~~~~~~~~~~~~~~~~~*/
+    lua_thread      *thread = 0;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     thread = pLua_get_thread(L);
     if (thread) {
@@ -1275,23 +1349,23 @@ static int lua_dbhandle(lua_State *L) {
         lua_rawgeti(L, 1, 0);
         luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
         db = (dbStruct *) lua_topointer(L, -1);
-
         if (db && db->alive) {
             rc = apr_dbd_check_conn(db->driver, db->pool, db->handle);
             if (rc == APR_SUCCESS) {
                 lua_pushboolean(L, 1);
-                return 1;
+                return (1);
             }
         }
     }
+
     lua_pushboolean(L, 0);
-    return 1;
+    return (1);
 }
+
 /*
  =======================================================================================================================
- * lua_dbdo(lua_State *L):
- * db:run(query): Executes the given database query and returns the number of rows affected.
- * If an error is encountered, returns nil as the first parameter and the error message as the second.
+    lua_dbdo(lua_State *L): db:run(query): Executes the given database query and returns the number of rows affected.
+    If an error is encountered, returns nil as the first parameter and the error message as the second.
  =======================================================================================================================
  */
 static int lua_dbdo(lua_State *L) {
@@ -1341,8 +1415,7 @@ static int lua_dbdo(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_dbescape(lua_State *L):
- * db:escape(string): Escapes a string for safe use in the given database type.
+    lua_dbescape(lua_State *L): db:escape(string): Escapes a string for safe use in the given database type.
  =======================================================================================================================
  */
 static int lua_dbescape(lua_State *L) {
@@ -1378,9 +1451,9 @@ static int lua_dbescape(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_dbquery(lua_State *L):
- * db:query(statement): Queries the database for the given statement and returns the rows/columns found as a table.
- * * If an error is encountered, returns nil as the first parameter and the error message as the second.
+    lua_dbquery(lua_State *L): db:query(statement): Queries the database for the given statement and returns the
+    rows/columns found as a table. If an error is encountered, returns nil as the first parameter and the error message
+    as the second.
  =======================================================================================================================
  */
 static int lua_dbquery(lua_State *L) {
@@ -1407,6 +1480,7 @@ static int lua_dbquery(lua_State *L) {
                                 cols;
             apr_dbd_results_t   *results = 0;
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
             apr_dbd_init(thread->r->pool);
             rc = apr_dbd_select(db->driver, thread->r->pool, db->handle, &results, statement, 0);
             if (rc == APR_SUCCESS) {
@@ -1438,7 +1512,7 @@ static int lua_dbquery(lua_State *L) {
                     return (1);
                 }
             } else {
-                
+
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
                 const char  *err = apr_dbd_error(db->driver, db->handle, rc);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
@@ -1457,8 +1531,9 @@ static int lua_dbquery(lua_State *L) {
 
     return (0);
 }
+
 #ifndef luaL_reg
-#define luaL_reg luaL_Reg
+#   define luaL_reg    luaL_Reg
 #endif
 static const luaL_reg   db_methods[] =
 {
@@ -1467,35 +1542,36 @@ static const luaL_reg   db_methods[] =
     { "query", lua_dbquery },
     { "run", lua_dbdo },
     { "active", lua_dbhandle },
-    { "__gc", lua_dbclose},
+    { "__gc", lua_dbclose },
     { 0, 0 }
 };
 
 /*
  =======================================================================================================================
- * lua_dbopen(lua_State *L):
- * dbopen(dbType, dbString): Opens a new connection to a database of type _dbType_ and with the connection parameters
- * _dbString_. If successful, returns a table with functions for using the database handle.
- * If an error occurs, returns nil as the first parameter and the error message as the second.
- * See the APR_DBD for a list of database types and connection strings supported.
+    lua_dbopen(lua_State *L): dbopen(dbType, dbString): Opens a new connection to a database of type _dbType_ and with
+    the connection parameters _dbString_. If successful, returns a table with functions for using the database handle.
+    If an error occurs, returns nil as the first parameter and the error message as the second. See the APR_DBD for a
+    list of database types and connection strings supported.
  =======================================================================================================================
  */
 static int lua_dbopen(lua_State *L) {
 
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~~~~~~*/
     const char      *type;
     const char      *arguments;
     const char      *error = 0;
     lua_thread      *thread;
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
-    apr_pool_t* pool = 0;
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-    
+    apr_pool_t      *pool = 0;
+    /*~~~~~~~~~~~~~~~~~~~~~~~*/
+
     thread = pLua_get_thread(L);
     if (thread) {
         apr_pool_create(&pool, thread->bigPool);
-        db = (dbStruct *) apr_pcalloc(pool, sizeof(dbStruct));//apr_pcalloc(thread->bigPool, sizeof(dbStruct));
+        db = (dbStruct *) apr_pcalloc(pool, sizeof(dbStruct));  /* apr_pcalloc(thread->bigPool,
+                                                                 * sizeof(dbStruct));
+                                                                 * */
         db->alive = 0;
         db->pool = pool;
         apr_dbd_init(pool);
@@ -1504,7 +1580,10 @@ static int lua_dbopen(lua_State *L) {
         type = lua_tostring(L, 1);
         arguments = lua_tostring(L, 2);
         lua_settop(L, 0);
-        //apr_dbd_init(thread->r->pool);
+
+        /*
+         * apr_dbd_init(thread->r->pool);
+         */
         rc = apr_dbd_get_driver(db->pool, type, &db->driver);
         if (rc == APR_SUCCESS) {
             if (strlen(arguments)) {
@@ -1523,10 +1602,12 @@ static int lua_dbopen(lua_State *L) {
                         apr_pool_destroy(pool);
                         return (2);
                     }
+
                     apr_pool_destroy(pool);
-                    return 1;
+                    return (1);
                 }
             }
+
             apr_pool_clear(pool);
             apr_pool_destroy(pool);
             lua_pushnil(L);
@@ -1548,8 +1629,7 @@ static int lua_dbopen(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_header(lua_State *L):
- * header(key, value): Sets a given HTTP header key and value.
+    lua_header(lua_State *L): header(key, value): Sets a given HTTP header key and value.
  =======================================================================================================================
  */
 static int lua_header(lua_State *L) {
@@ -1581,8 +1661,7 @@ static int lua_header(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_echo(lua_State *L):
- * echo(...): Same as print(...) in Lua.
+    lua_echo(lua_State *L): echo(...): Same as print(...) in Lua.
  =======================================================================================================================
  */
 static int lua_echo(lua_State *L) {
@@ -1610,19 +1689,23 @@ static int lua_echo(lua_State *L) {
                     ap_rwrite(el, x, thread->r);
                     thread->written += x;
                 }
-                
             } else {
                 el = lua_tostring(L, y);
                 if (el) ap_rputs(el, thread->r);
                 thread->written += strlen(el);
             }
-            if (thread->written > 20480) { ap_rflush(thread->r); thread->written = 0; }
+
+            if (thread->written > 20480) {
+                ap_rflush(thread->r);
+                thread->written = 0;
+            }
         }
 
         lua_settop(L, 0);
     } else {
-		fprintf(stderr, "Couldn't get the lua handle :(\r\n");
-		fflush(stderr);
+        fprintf(stderr, "Couldn't get the lua handle :(\r\n");
+        fflush(stderr);
+
         /*
          * ap_rputs("Couldn't find our userdata :(",thread->r);
          */
@@ -1633,8 +1716,7 @@ static int lua_echo(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_setContentType(lua_State *L):
- * setContentType(type): Sets the content type of the returned output.
+    lua_setContentType(lua_State *L): setContentType(type): Sets the content type of the returned output.
  =======================================================================================================================
  */
 static int lua_setContentType(lua_State *L) {
@@ -1661,13 +1743,17 @@ static int lua_setContentType(lua_State *L) {
     return (0);
 }
 
-
+/*
+ =======================================================================================================================
+ * lua_setErrorLevel(lua_State *L): showErrors(true/false): Sets whether or not to output errors to the client.
+ =======================================================================================================================
+ */
 static int lua_setErrorLevel(lua_State *L) {
 
-    /*~~~~~~~~~~~~~~~~*/
-    int level = 0;
+    /*~~~~~~~~~~~~~~~~~~*/
+    int         level = 0;
     lua_thread  *thread;
-    /*~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~*/
 
     luaL_checktype(L, 1, LUA_TBOOLEAN);
     level = lua_toboolean(L, 1);
@@ -1675,12 +1761,13 @@ static int lua_setErrorLevel(lua_State *L) {
     if (thread) {
         thread->errorLevel = level;
     }
-    return 0;
+
+    return (0);
 }
+
 /*
  =======================================================================================================================
- * lua_setReturnCode(lua_State *L):
- * setReturnCode(rc): Sets the return code of the HTTP output to _rc_.
+    lua_setReturnCode(lua_State *L): setReturnCode(rc): Sets the return code of the HTTP output to _rc_.
  =======================================================================================================================
  */
 static int lua_setReturnCode(lua_State *L) {
@@ -1702,8 +1789,7 @@ static int lua_setReturnCode(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_getEnv(lua_State *L):
- * getEnv(): Returns a table with the current HTTP request environment.
+    lua_getEnv(lua_State *L): getEnv(): Returns a table with the current HTTP request environment.
  =======================================================================================================================
  */
 static int lua_getEnv(lua_State *L) {
@@ -1712,18 +1798,18 @@ static int lua_getEnv(lua_State *L) {
     lua_thread                  *thread;
     const apr_array_header_t    *fields;
     int                         i;
-	
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     thread = pLua_get_thread(L);
     if (thread) {
-		
+
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         apr_table_entry_t   *e = 0;
         char                *pwd = getPWD(thread);
-		char luaVersion[32];
+        char                luaVersion[32];
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-		sprintf(luaVersion, "%u.%u", (LUA_VERSION_NUM/100), (LUA_VERSION_NUM) % (LUA_VERSION_NUM/100));
+
+        sprintf(luaVersion, "%u.%u", (LUA_VERSION_NUM / 100), (LUA_VERSION_NUM) % (LUA_VERSION_NUM / 100));
         lua_newtable(thread->state);
         fields = apr_table_elts(thread->r->headers_in);
         e = (apr_table_entry_t *) fields->elts;
@@ -1774,7 +1860,7 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Lua-State");
         lua_pushfstring(thread->state, "%p", thread->state);
         lua_rawset(L, -3);
-		lua_pushstring(thread->state, "Lua-Version");
+        lua_pushstring(thread->state, "Lua-Version");
         lua_pushstring(thread->state, luaVersion);
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Request-Method");
@@ -1803,12 +1889,10 @@ static int lua_getEnv(lua_State *L) {
             lua_pushstring(thread->state, pwd);
             lua_rawset(L, -3);
         }
+
         lua_pushstring(thread->state, "Server-Banner");
         lua_pushstring(thread->state, ap_get_server_banner());
         lua_rawset(L, -3);
-
-        
-
         return (1);
     }
 
@@ -1817,8 +1901,7 @@ static int lua_getEnv(lua_State *L) {
 
 /*
  =======================================================================================================================
- * lua_fileinfo(lua_State *L):
- * file.stat(filename): Returns a table with information on the given file.
+    lua_fileinfo(lua_State *L): file.stat(filename): Returns a table with information on the given file.
  =======================================================================================================================
  */
 static int lua_fileinfo(lua_State *L)
@@ -1831,7 +1914,7 @@ static int lua_fileinfo(lua_State *L)
     struct stat fileinfo;
     const char  *filename;
     /*~~~~~~~~~~~~~~~~~~*/
-    
+
     luaL_checktype(L, 1, LUA_TSTRING);
     filename = lua_tostring(L, 1);
     lua_settop(L, 0);
@@ -1860,8 +1943,7 @@ static int lua_fileinfo(lua_State *L)
 
 /*
  =======================================================================================================================
- * lua_clock(lua_State *L):
- * clock(): Returns a high definition clock value for use with benchmarking.
+    lua_clock(lua_State *L): clock(): Returns a high definition clock value for use with benchmarking.
  =======================================================================================================================
  */
 static int lua_clock(lua_State *L)
@@ -1902,8 +1984,8 @@ static int lua_clock(lua_State *L)
 
 /*
  =======================================================================================================================
- * lua_compileTime(lua_State *L):
- * compileTime(): Returns the time when the request for this script got called using the same value type as clock().
+    lua_compileTime(lua_State *L): compileTime(): Returns the time when the request for this script got called using
+    the same value type as clock().
  =======================================================================================================================
  */
 static int lua_compileTime(lua_State *L) {
@@ -1928,8 +2010,8 @@ static int lua_compileTime(lua_State *L) {
 
 /*
  =======================================================================================================================
- * util_read(request_rec *r, const char **rbuf, apr_off_t *size):
- * Reads any additional form data sent in POST requests.
+    util_read(request_rec *r, const char **rbuf, apr_off_t *size): Reads any additional form data sent in POST
+    requests.
  =======================================================================================================================
  */
 static int util_read(request_rec *r, const char **rbuf, apr_off_t *size) {
@@ -2143,8 +2225,8 @@ static int lua_parse_post(lua_State *L) {
         if (thread->r->method_number != M_POST || thread->parsedPost == 1) {
             return (1);
         }
-        thread->parsedPost = 1;
 
+        thread->parsedPost = 1;
         memset(multipart, 0, 256);
         type = apr_table_get(thread->r->headers_in, "Content-Type");
         if (sscanf(type, "multipart/form-data; boundary=%250c", multipart) == 1) {
@@ -2186,9 +2268,10 @@ static int lua_parse_get(lua_State *L) {
     if (thread) {
         data = thread->r->args;
         parse_urlencoded(thread, data);
-        return 1;
+        return (1);
     }
-    return 1;
+
+    return (1);
 }
 
 /*
@@ -2197,13 +2280,12 @@ static int lua_parse_get(lua_State *L) {
  */
 static int lua_includeFile(lua_State *L) {
 
-    /*~~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~~~~~~*/
     const char  *filename;
     lua_thread  *thread = 0;
-    char compileRaw = 0;
-    /*~~~~~~~~~~~~~~~~~~~~*/
+    char        compileRaw = 0;
+    /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    
     thread = pLua_get_thread(L);
     if (thread) {
 
@@ -2311,25 +2393,32 @@ void lua_init_state(lua_thread *thread, int x) {
     Acquires a Lua state from the global stack
  =======================================================================================================================
  */
-lua_thread *lua_acquire_state(request_rec* r, const char* hostname) {
+lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
-    /*~~~~~~~~~~~~~~~~~~*/
-    int         x,y;
+    /*~~~~~~~~~~~~~~~~~~~~*/
+    int         x,
+                y;
     int         found = 0;
     lua_thread  *L = 0;
-    lua_domain *domain = 0;
-    /*~~~~~~~~~~~~~~~~~~*/
-    
+    lua_domain  *domain = 0;
+    /*~~~~~~~~~~~~~~~~~~~~*/
+
     for (x = 0; x < PLUA_DOMAINS; x++) {
         if (!strcmp(hostname, pLua_domains[x].domain)) {
             domain = &pLua_domains[x];
-          //  ap_rputs("Found the domain in the cache\r\n",r);
+
+            /*
+             * ap_rputs("Found the domain in the cache\r\n",r);
+             */
             break;
         }
     }
-    
+
     if (!domain) {
-        //ap_rputs("Adding new domain!\r\n",r);
+
+        /*
+         * ap_rputs("Adding new domain!\r\n",r);
+         */
         for (x = 0; x < PLUA_DOMAINS; x++) {
             if (!strlen(pLua_domains[x].domain)) {
                 domain = &pLua_domains[x];
@@ -2340,18 +2429,18 @@ lua_thread *lua_acquire_state(request_rec* r, const char* hostname) {
                         domain->states[y].files = apr_pcalloc(domain->pool, LUA_FILES * sizeof(pLua_files));
                         lua_init_state(&domain->states[y], y);
                         domain->states[y].bigPool = domain->pool;
-                        domain->states[y].domain = (void*) domain;
+                        domain->states[y].domain = (void *) domain;
                     }
                 }
                 break;
             }
         }
-        
     }
     
-#ifndef _WIN32
+    // Last minute resort if we run out of domain structs all together
+    if (!domain) domain = &pLua_domains[PLUA_DOMAINS-1]; 
+
     pthread_mutex_lock(&domain->mutex);
-#endif
     for (x = 0; x < LUA_STATES; x++) {
         if (!domain->states[x].working && domain->states[x].state) {
             domain->states[x].working = 1;
@@ -2362,9 +2451,7 @@ lua_thread *lua_acquire_state(request_rec* r, const char* hostname) {
         }
     }
 
-#ifndef _WIN32
     pthread_mutex_unlock(&domain->mutex);
-#endif
     if (found)
     {
         /*~~~~~~~~~~~~~~~~*/
@@ -2384,8 +2471,11 @@ lua_thread *lua_acquire_state(request_rec* r, const char* hostname) {
     } else {
         sleep(1);
         return (lua_acquire_state(r, hostname));
-        //ap_rputs("Couldn't find an available state!\r\n", r);
-        return 0;
+
+        /*
+         * ap_rputs("Couldn't find an available state!\r\n", r);
+         */
+        return (0);
     }
 }
 
@@ -2395,21 +2485,17 @@ lua_thread *lua_acquire_state(request_rec* r, const char* hostname) {
  =======================================================================================================================
  */
 void lua_release_state(lua_thread *thread) {
-
-
     lua_gc(thread->state, LUA_GCSTEP, 1);
-#ifndef _WIN32
-    pthread_mutex_lock(& ((lua_domain*)(thread->domain))->mutex);
-#endif
+    pthread_mutex_lock(&((lua_domain *) (thread->domain))->mutex);
     thread->working = 0;
+
     /* Check if state needs restarting */
     if (thread->sessions > LUA_RUNS) {
         lua_close(thread->state);
         lua_init_state(thread, 1);
     }
-#ifndef _WIN32
-    pthread_mutex_unlock(&((lua_domain*)(thread->domain))->mutex);
-#endif
+
+    pthread_mutex_unlock(&((lua_domain *) (thread->domain))->mutex);
 }
 
 /*$1
@@ -2426,16 +2512,16 @@ void lua_release_state(lua_thread *thread) {
  */
 static int plua_handler(request_rec *r) {
 
-    /*~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~~~~~~*/
     int         exists = 1;
     struct stat statbuf;
-    char compileRaw = 0;
-    /*~~~~~~~~~~~~~~~~~~~*/
+    char        compileRaw = 0;
+    /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
     /* Check if we are being called, and that the request method is one we can handle. */
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
-   
+
     /* Check if the file requested really exists. */
     if (stat(r->filename, &statbuf) == -1) exists = 0;
     else if (statbuf.st_mode & 0x00400000)  /* Is it a folder? */
@@ -2448,22 +2534,25 @@ static int plua_handler(request_rec *r) {
         ap_rputs("<html><head><title>Lua_HTML: Error</title></head>", r);
         ap_rprintf(r, "<body><h1>No such file: %s</h1></body></html>", r->unparsed_uri);
         return (HTTP_NOT_FOUND);
-        
+
         /* Else start processing the request */
     } else {
 
-        
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-        char *xStart = 0;
-        char *xEnd = 0;
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        char        *xStart = 0;
+        char        *xEnd = 0;
         int         x = 0,
                     rc = 0;
         lua_thread  *l = lua_acquire_state(r, r->server->server_hostname);
         lua_State   *L = l->state;
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-        //ap_rprintf(r, "Acquired state !\r\n");
-        //return OK;
-        /* Set up the lua_thread struct and change to the current directory. */
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+        /*
+         * ap_rprintf(r, "Acquired state !\r\n");
+         * *return OK;
+         * ;
+         * Set up the lua_thread struct and change to the current directory.
+         */
         l->r = r;
         l->written = 0;
         l->errorLevel = LUA_PERROR;
@@ -2480,15 +2569,18 @@ static int plua_handler(request_rec *r) {
         /* Push the lua_thread struct onto the Lua registry (this should be changed to an init operation?) */
         lua_pushlightuserdata(L, l);
         lua_rawseti(L, LUA_REGISTRYINDEX, 0);
-        //x = luaL_ref(L, LUA_REGISTRYINDEX);
-        
-        // Check if we want to compile this file as a plain lua file or not
+
+        /*
+         * x = luaL_ref(L, LUA_REGISTRYINDEX);
+         * * Check if we want to compile this file as a plain lua file or not
+         */
         xEnd = r->filename;
         xStart = strchr(r->filename, '.');
         while (xStart != 0) {
             xEnd = xStart;
-            xStart = strchr(xEnd+1, '.');
+            xStart = strchr(xEnd + 1, '.');
         }
+
         for (x = 0; x < PLUA_RAW_TYPES; x++) {
             if (strlen(pLua_rawTypes[x])) {
                 if (!strcmp(xEnd, pLua_rawTypes[x])) {
@@ -2521,6 +2613,7 @@ static int plua_handler(request_rec *r) {
                 l->runTime = time(0);
                 lua_sethook(L, pLua_debug_hook, LUA_MASKLINE | LUA_MASKCOUNT, 1);
             }
+
             rc = lua_pcall(L, 0, LUA_MULTRET, 0);
 
             /* DId we get a run-time error? */
@@ -2534,14 +2627,16 @@ static int plua_handler(request_rec *r) {
                 rc = l->returnCode;
                 if (PLUA_DEBUG) ap_rprintf(r, "<b>Compiled and ran fine from index %u</b>", rc);
             }
+
             if (LUA_TIMEOUT > 0) {
                 lua_sethook(L, pLua_debug_hook, 0, 0);
-                
             }
         }
 
-        /* Cleanup */
-     //   luaL_unref(L, LUA_REGISTRYINDEX, 2);
+        /*
+         * Cleanup ;
+         * luaL_unref(L, LUA_REGISTRYINDEX, 2);
+         */
         lua_release_state(l);
         return (rc);
     }
@@ -2560,18 +2655,17 @@ static void module_init(apr_pool_t *pool) {
     /*~~*/
     int x;
     /*~~*/
-
+    LUA_BIGPOOL = pool;
     pLua_domains = apr_pcalloc(pool, sizeof(lua_domain) * PLUA_DOMAINS);
-    for (x = 0; x < PLUA_DOMAINS; x++) {
-#ifndef _WIN32
+    for (x = 0; x < PLUA_DOMAINS; x++)
+    {
         pthread_mutex_init(&pLua_domains[x].mutex, 0);
-#endif
         pLua_domains[x].pool = pool;
     }
+
     apr_dbd_init(pool);
-    
     for (x = 0; x < PLUA_RAW_TYPES; x++) {
-        pLua_rawTypes[x] = (char*) apr_pcalloc(pool, 64);
+        pLua_rawTypes[x] = (char *) apr_pcalloc(pool, 64);
     }
 }
 
@@ -2616,8 +2710,8 @@ const char *pLua_set_LuaRuns(cmd_parms *cmd, void *cfg, const char *arg) {
 
 /*
  =======================================================================================================================
-    pLuaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
-    so having 200 elements in 50 states will use 3MB of memory. If you run a large server with many scripts and
+    pLuaFiles N: Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of
+    memory, so having 200 elements in 50 states will use 3MB of memory. If you run a large server with many scripts and
     domains, you may want to set this to a higher number, fx. 1000.
  =======================================================================================================================
  */
@@ -2631,6 +2725,12 @@ const char *pLua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg) {
     return (NULL);
 }
 
+
+/*
+ =======================================================================================================================
+    pLuaTimeout N: Sets the timeout to N seconds for any pLua scripts run by the handler. Default is 0 (disabled).
+ =======================================================================================================================
+ */
 const char *pLua_set_Timeout(cmd_parms *cmd, void *cfg, const char *arg) {
 
     /*~~~~~~~~~~~~~~*/
@@ -2641,6 +2741,11 @@ const char *pLua_set_Timeout(cmd_parms *cmd, void *cfg, const char *arg) {
     return (NULL);
 }
 
+/*
+ =======================================================================================================================
+    pLuaError N: Sets whether or not to output error messages to the client. Set to 1 for enabled, 0 for disabled.
+ =======================================================================================================================
+ */
 const char *pLua_set_Logging(cmd_parms *cmd, void *cfg, const char *arg) {
 
     /*~~~~~~~~~~~~~~*/
@@ -2660,9 +2765,9 @@ const char *pLua_set_Logging(cmd_parms *cmd, void *cfg, const char *arg) {
  */
 const char *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg) {
 
-    /*~~~~~~~~~~~~~~*/
+    /*~~~~~~*/
     int x = 0;
-    /*~~~~~~~~~~~~~~*/
+    /*~~~~~~*/
 
     for (x = 0; x < PLUA_RAW_TYPES; x++) {
         if (!strlen(pLua_rawTypes[x])) {
@@ -2670,6 +2775,7 @@ const char *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg) {
             break;
         }
     }
+
     return (NULL);
 }
 
@@ -2679,7 +2785,11 @@ static const command_rec        my_directives[] =
     AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
     AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
     AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file"),
-    AP_INIT_TAKE1("pLuaTimeout", pLua_set_Timeout, NULL, OR_ALL, "Sets the maximum number of seconds a pLua script may take to execute. Set to 0 to disable."),
+    AP_INIT_TAKE1
+        (
+            "pLuaTimeout", pLua_set_Timeout, NULL, OR_ALL,
+                "Sets the maximum number of seconds a pLua script may take to execute. Set to 0 to disable."
+        ),
     AP_INIT_TAKE1("pLuaError", pLua_set_Logging, NULL, OR_ALL, "Sets the error logging level. Set to 0 to disable errors, 1 to enable."),
     { NULL }
 };
