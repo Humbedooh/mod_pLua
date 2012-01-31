@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        31
+#define PLUA_VERSION        32
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -80,12 +80,15 @@
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
-static int      LUA_STATES = 25;    /* Keep 50 states open */
+static int      LUA_STATES = 50;    /* Keep 50 states open */
 static int      LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int      LUA_FILES = 50;     /* Number of files to keep cached */
 static int      LUA_TIMEOUT = 0;    /* Maximum number of seconds a lua script may take (set to 0 to disable) */
 static int      LUA_PERROR = 1;
+static int      LUA_MULTIDOMAIN = 0; /* Enable/disable multidomain support (experimental) */
 static apr_pool_t* LUA_BIGPOOL = 0;
+static pthread_mutex_t pLua_bigLock;
+static int pLua_domainsAllocated = 1;
 static uint32_t then = 0;
 typedef struct
 {
@@ -125,7 +128,7 @@ typedef struct
     int         sizes[MAX_MULTIPLES];
     const char  *values[MAX_MULTIPLES];
 } formdata;
-static lua_domain   *pLua_domains;
+static lua_domain   *pLua_domains = 0;
 typedef struct
 {
     apr_dbd_t               *handle;
@@ -174,9 +177,8 @@ static char             *pLua_rawTypes[PLUA_RAW_TYPES];
 
 
 /*$1
- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    mod_pLua compiler and parser functions
- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Windows specific mutex handling
+ * 
  */
 
 #ifdef _WIN32
@@ -198,6 +200,13 @@ static void pthread_mutex_init(HANDLE* mutex) {
     return;
 }
 #endif
+
+/*$1
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    mod_pLua compiler and parser functions
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ */
+
 
 /*
  =======================================================================================================================
@@ -415,8 +424,8 @@ int lua_parse_file(lua_thread *thread, char *input) {
 
                 /* <?=variable?> check */
                 if (matchStart[strlen(sTag)] == '=') {
-                    test = (char *) apr_pcalloc(thread->r->pool, matchEnd - matchStart + strlen(sTag));
-                    etest = (char *) apr_pcalloc(thread->r->pool, matchEnd - matchStart + 10);
+                    test = (char *) apr_pcalloc(thread->r->pool, matchEnd - matchStart + strlen(sTag) + 10);
+                    etest = (char *) apr_pcalloc(thread->r->pool, matchEnd - matchStart + 20);
                     strncpy(test, matchStart + 1 + strlen(sTag), matchEnd - matchStart - strlen(sTag) - 1);
                     test[matchEnd - matchStart - 1 - strlen(sTag)] = 0;
                     at = matchEnd - input + strlen(eTag);
@@ -428,7 +437,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
                      */
                     lua_add_code(&output, etest);
                 } /* <? code ?> check */ else {
-                    test = (char *) apr_pcalloc(thread->r->pool, matchEnd - matchStart + strlen(sTag));
+                    test = (char *) apr_pcalloc(thread->r->pool, matchEnd - matchStart + strlen(sTag) + 10);
                     strncpy(test, matchStart + strlen(sTag), matchEnd - matchStart - strlen(sTag));
                     test[matchEnd - matchStart - strlen(sTag)] = 0;
                     at = matchEnd - input + strlen(eTag);
@@ -443,7 +452,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
             if (inputSize > at) {
 
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-                char    *test = (char *) apr_pcalloc(thread->r->pool, strlen(input) - at + 20);
+                char    *test = (char *) apr_pcalloc(thread->r->pool, strlen(input) - at + 32);
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 #ifdef _WIN32
@@ -601,7 +610,7 @@ char *getPWD(lua_thread *thread) {
     size_t  x,
             y,
             z;
-    char    *pwd = (char *) apr_pcalloc(thread->r->pool, strlen(thread->r->filename) + 1);
+    char    *pwd = (char *) apr_pcalloc(thread->r->pool, strlen(thread->r->filename) + 2);
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     if (pwd) {
@@ -1010,7 +1019,7 @@ char *pLua_decode_base64(const char *src, lua_thread *thread) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     size_t  ilen = strlen(src);
-    char    *output = (char *) apr_pcalloc(thread->r->pool, ilen);
+    char    *output = (char *) apr_pcalloc(thread->r->pool, ilen+2);
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     pLua_unbase64((unsigned char *) output, (const unsigned char *) src, ilen);
@@ -1186,7 +1195,7 @@ static int lua_b64dec(lua_State *L) {
     thread = pLua_get_thread(L);
     if (thread) {
         if (ilen) {
-            output = apr_pcalloc(thread->r->pool, ilen);
+            output = apr_pcalloc(thread->r->pool, ilen+1);
             olen = pLua_unbase64((unsigned char *) output, (const unsigned char *) string, ilen);
             lua_settop(L, 0);
             lua_pushlstring(L, output, olen);
@@ -1661,6 +1670,23 @@ static int lua_header(lua_State *L) {
 
 /*
  =======================================================================================================================
+    lua_flush(lua_State *L): flush(): Flushes the output buffer.
+ =======================================================================================================================
+ */
+static int lua_flush(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~*/
+    lua_thread  *thread;
+    /*~~~~~~~~~~~~~~~~*/
+
+    thread = pLua_get_thread(L);
+    if (thread) {
+        ap_rflush(thread->r);
+    }
+    return 0;
+}
+/*
+ =======================================================================================================================
     lua_echo(lua_State *L): echo(...): Same as print(...) in Lua.
  =======================================================================================================================
  */
@@ -2080,7 +2106,7 @@ static int parse_urlencoded(lua_thread *thread, const char *data) {
                 y;
     const char  *key,
                 *val;
-    formdata    *form = apr_pcalloc(thread->r->pool, sizeof(formdata) * MAX_VARS);
+    formdata    *form = apr_pcalloc(thread->r->pool, sizeof(formdata) * (MAX_VARS+1));
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     if (!data || !strlen(data)) return (0);
@@ -2146,7 +2172,7 @@ static int parse_multipart(lua_thread *thread, const char *data, const char *mul
                 z;
     size_t      vlen = 0;
     size_t      len = 0;
-    formdata    *form = (formdata *) apr_pcalloc(thread->r->pool, sizeof(formdata) * MAX_VARS);
+    formdata    *form = (formdata *) apr_pcalloc(thread->r->pool, sizeof(formdata) * (MAX_VARS+1));
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     len = strlen(multipart);
@@ -2329,6 +2355,7 @@ static const luaL_reg   Global_methods[] =
 {
     { "echo", lua_echo },
     { "print", lua_echo },
+    { "flush", lua_flush },
     { "header", lua_header },
     { "setContentType", lua_setContentType },
     { "getEnv", lua_getEnv },
@@ -2388,6 +2415,22 @@ void lua_init_state(lua_thread *thread, int x) {
     }
 }
 
+/* $2
+ * Lua state generator
+ */
+void pLua_init_states(lua_domain* domain) {
+    int y;
+    domain->states = (lua_thread *) apr_pcalloc(domain->pool, (LUA_STATES+1) * sizeof(lua_thread));
+    fprintf(stderr, "Allocated new domain pool for '%s' of size %lu in space %p <Not an Error>\r\n", domain->domain, LUA_STATES * sizeof(lua_thread), domain->states);
+    for (y = 0; y < LUA_STATES; y++) {
+        if (!domain->states[y].state) {
+            domain->states[y].files = apr_pcalloc(domain->pool, (LUA_FILES+1) * sizeof(pLua_files));
+            lua_init_state(&domain->states[y], y);
+            domain->states[y].bigPool = domain->pool;
+            domain->states[y].domain = (void *) domain;
+        }
+    }
+}
 /*
  =======================================================================================================================
     Acquires a Lua state from the global stack
@@ -2396,50 +2439,46 @@ void lua_init_state(lua_thread *thread, int x) {
 lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
     /*~~~~~~~~~~~~~~~~~~~~*/
-    int         x,
-                y;
+    int         x;
     int         found = 0;
     lua_thread  *L = 0;
     lua_domain  *domain = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
-    for (x = 0; x < PLUA_DOMAINS; x++) {
-        if (!strcmp(hostname, pLua_domains[x].domain)) {
-            domain = &pLua_domains[x];
-
-            /*
-             * ap_rputs("Found the domain in the cache\r\n",r);
-             */
-            break;
-        }
-    }
-
-    if (!domain) {
-
-        /*
-         * ap_rputs("Adding new domain!\r\n",r);
-         */
-        for (x = 0; x < PLUA_DOMAINS; x++) {
-            if (!strlen(pLua_domains[x].domain)) {
+    if (LUA_MULTIDOMAIN > 0) {
+        pthread_mutex_lock(&pLua_bigLock);
+        // Look for an existing domain pool
+        for (x = 0; x < pLua_domainsAllocated; x++) {
+            if (!strcmp(hostname, pLua_domains[x].domain)) {
                 domain = &pLua_domains[x];
-                strcpy(domain->domain, hostname);
-                domain->states = (lua_thread *) apr_pcalloc(domain->pool, LUA_STATES * sizeof(lua_thread));
-                for (y = 0; y < LUA_STATES; y++) {
-                    if (!domain->states[y].state) {
-                        domain->states[y].files = apr_pcalloc(domain->pool, LUA_FILES * sizeof(pLua_files));
-                        lua_init_state(&domain->states[y], y);
-                        domain->states[y].bigPool = domain->pool;
-                        domain->states[y].domain = (void *) domain;
-                    }
-                }
+        //       fprintf(stderr, "Found match (%s) for (%s), returning handle\r\n", pLua_domains[x].domain, hostname);
                 break;
             }
         }
+
+        // If no pool was allocated, make one!
+        if (!domain) {
+            fprintf(stderr, "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' <Not an Error>\r\n", hostname);
+            pLua_domainsAllocated++;
+            pLua_domains = realloc(pLua_domains, sizeof(lua_domain) * (pLua_domainsAllocated+2));
+            if (!pLua_domains) {
+                fprintf(stderr, "<mod_pLua>: Realloc failure! This is bad :( \r\n");
+                return 0;
+            }
+            domain = &pLua_domains[pLua_domainsAllocated-1];
+            domain->pool = LUA_BIGPOOL;        
+            strcpy(domain->domain, hostname);
+            pthread_mutex_init(&domain->mutex, 0);
+            pLua_init_states(domain);
+
+        }
+
+        pthread_mutex_unlock(&pLua_bigLock);
+    }
+    else {
+        domain = &pLua_domains[0];
     }
     
-    // Last minute resort if we run out of domain structs all together
-    if (!domain) domain = &pLua_domains[PLUA_DOMAINS-1]; 
-
     pthread_mutex_lock(&domain->mutex);
     for (x = 0; x < LUA_STATES; x++) {
         if (!domain->states[x].working && domain->states[x].state) {
@@ -2531,7 +2570,7 @@ static int plua_handler(request_rec *r) {
     if (!exists) {
         ap_set_content_type(r, "text/html;charset=ascii");
         ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
-        ap_rputs("<html><head><title>Lua_HTML: Error</title></head>", r);
+        ap_rputs("<html><head><title>mod_pLua: Error</title></head>", r);
         ap_rprintf(r, "<body><h1>No such file: %s</h1></body></html>", r->unparsed_uri);
         return (HTTP_NOT_FOUND);
 
@@ -2546,11 +2585,17 @@ static int plua_handler(request_rec *r) {
         lua_thread  *l = lua_acquire_state(r, r->server->server_hostname);
         lua_State   *L = l->state;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        
+        // Check if state acuisition worked
+        if (!l) {
+            ap_set_content_type(r, "text/html;charset=ascii");
+        ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
+        ap_rputs("<html><head><title>mod_pLua: Grand supreme error!</title></head>", r);
+        ap_rprintf(r, "<body><h1>Memory allocation failed for hostname: %s</h1></body></html>", r->server->server_hostname);
+        return (HTTP_INTERNAL_SERVER_ERROR);
+        }
 
         /*
-         * ap_rprintf(r, "Acquired state !\r\n");
-         * *return OK;
-         * ;
          * Set up the lua_thread struct and change to the current directory.
          */
         l->r = r;
@@ -2655,14 +2700,18 @@ static void module_init(apr_pool_t *pool) {
     /*~~*/
     int x;
     /*~~*/
+    
     LUA_BIGPOOL = pool;
-    pLua_domains = apr_pcalloc(pool, sizeof(lua_domain) * PLUA_DOMAINS);
-    for (x = 0; x < PLUA_DOMAINS; x++)
-    {
-        pthread_mutex_init(&pLua_domains[x].mutex, 0);
-        pLua_domains[x].pool = pool;
+    pthread_mutex_init(&pLua_bigLock, 0);
+    if (!pLua_domains) {
+        pLua_domainsAllocated = 1;
+        pLua_domains = calloc(1, sizeof(lua_domain));
+        pthread_mutex_init(&pLua_domains[0].mutex, 0);
+        pLua_domains[0].pool = pool;
+        sprintf(pLua_domains[0].domain, "localhost");
+        pLua_init_states(&pLua_domains[0]);
     }
-
+    
     apr_dbd_init(pool);
     for (x = 0; x < PLUA_RAW_TYPES; x++) {
         pLua_rawTypes[x] = (char *) apr_pcalloc(pool, 64);
@@ -2758,6 +2807,21 @@ const char *pLua_set_Logging(cmd_parms *cmd, void *cfg, const char *arg) {
 
 /*
  =======================================================================================================================
+    pLuaMultiDomain N: Sets whether or not to enable multidomain support. Set to 1 for enabled, 0 for disabled.
+ =======================================================================================================================
+ */
+const char *pLua_set_Multi(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
+    int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
+    LUA_MULTIDOMAIN = x > 0 ? x : 0;
+    return (NULL);
+}
+
+/*
+ =======================================================================================================================
     pLuaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
     so having 200 elements in 50 states will use 3MB of memory. If you run a large server with many scripts and
     domains, you may want to set this to a higher number, fx. 1000.
@@ -2791,6 +2855,7 @@ static const command_rec        my_directives[] =
                 "Sets the maximum number of seconds a pLua script may take to execute. Set to 0 to disable."
         ),
     AP_INIT_TAKE1("pLuaError", pLua_set_Logging, NULL, OR_ALL, "Sets the error logging level. Set to 0 to disable errors, 1 to enable."),
+    AP_INIT_TAKE1("pLuaMultiDomain", pLua_set_Multi, NULL, OR_ALL, "Enables or disabled support for domain state pools"),
     { NULL }
 };
 module AP_MODULE_DECLARE_DATA   plua_module = { STANDARD20_MODULE_STUFF, NULL, NULL, NULL, NULL, my_directives, register_hooks };

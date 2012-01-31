@@ -1,3 +1,10 @@
+0.32:
+- (experimental) support for dynamically allocated per-vhost state pools
+- Added the pLuaMultiDomain directive for enabling multiple state pools
+- Removed the old hardcoded state pool generators
+- Added the flush() function for flushing the output buffer immediately (remember to set your content type prior to this!)
+- Upped the default number of states to 50 again (just because)
+
 0.31:
 - Added mutex support for Windows packages
 - Updated the mod_pLua example page (test.plua)
