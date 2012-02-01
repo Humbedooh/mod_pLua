@@ -1,6 +1,5 @@
 0.33:
 - Added the sleep(N) function for primarilly testing purposes
-- pLuaMultiDomain will now default to 1 (enabled) - let's see how it goes
 - mod_pLua now uses the file information passed on by Apache to speed things up
 - include() now uses apr_stat instead of stat
 

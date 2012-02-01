@@ -88,10 +88,9 @@ static int      LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int      LUA_FILES = 50;     /* Number of files to keep cached */
 static int      LUA_TIMEOUT = 0;    /* Maximum number of seconds a lua script may take (set to 0 to disable) */
 static int      LUA_PERROR = 1;
-static int      LUA_MULTIDOMAIN = 1; /* Enable/disable multidomain support (experimental) */
+static int      LUA_MULTIDOMAIN = 0; /* Enable/disable multidomain support (experimental) */
 static apr_pool_t* LUA_BIGPOOL = 0;
 static pthread_mutex_t pLua_bigLock;
-static int      pLua_logCounter = 0;
 static int pLua_domainsAllocated = 1;
 static uint32_t then = 0;
 typedef struct
@@ -2446,7 +2445,8 @@ void lua_init_state(lua_thread *thread, int x) {
 void pLua_init_states(lua_domain* domain) {
     int y;
     domain->states = (lua_thread *) apr_pcalloc(domain->pool, (LUA_STATES+1) * sizeof(lua_thread));
-    fprintf(stderr, "[%lu / %u] mod_plua.c [notice] Allocated new domain pool for '%s' of size %lu in space %p <Not an Error>\r\n", time(0), pLua_logCounter++, domain->domain, LUA_STATES * sizeof(lua_thread), domain->states);
+    
+    fprintf(stderr, "mod_plua.c [notice] Allocated new domain pool for '%s' of size %lu in space %p <Not an Error>\r\n", domain->domain, LUA_STATES * sizeof(lua_thread), domain->states);
     for (y = 0; y < LUA_STATES; y++) {
         if (!domain->states[y].state) {
             domain->states[y].files = apr_pcalloc(domain->pool, (LUA_FILES+1) * sizeof(pLua_files));
@@ -2469,25 +2469,29 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
     lua_thread  *L = 0;
     lua_domain  *domain = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
-
+    hostname = hostname ? hostname : "localDomain";
+    //fprintf(stderr, "Looking for domain pool named '%s'\r\n", hostname);
     if (LUA_MULTIDOMAIN > 0) {
-        pthread_mutex_lock(&pLua_bigLock);
+        //pthread_mutex_lock(&pLua_bigLock);
         // Look for an existing domain pool
         for (x = 0; x < pLua_domainsAllocated; x++) {
             if (!strcmp(hostname, pLua_domains[x].domain)) {
                 domain = &pLua_domains[x];
-        //       fprintf(stderr, "Found match (%s) for (%s), returning handle\r\n", pLua_domains[x].domain, hostname);
+           //     fprintf(stderr, "Found match (%s) for (%s), returning handle\r\n", pLua_domains[x].domain, hostname);
+           //     fflush(stderr);
                 break;
             }
         }
 
         // If no pool was allocated, make one!
         if (!domain) {
-            fprintf(stderr, "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' <Not an Error>\r\n", hostname);
+            fprintf(stderr, "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>\r\n", hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated+3));
+            fflush(stderr);
             pLua_domainsAllocated++;
             pLua_domains = realloc(pLua_domains, sizeof(lua_domain) * (pLua_domainsAllocated+2));
-            if (!pLua_domains) {
+            if (pLua_domains == 0) {
                 fprintf(stderr, "<mod_pLua>: Realloc failure! This is bad :( \r\n");
+                fflush(stderr);
                 return 0;
             }
             domain = &pLua_domains[pLua_domainsAllocated-1];
@@ -2498,7 +2502,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
         }
 
-        pthread_mutex_unlock(&pLua_bigLock);
+       // pthread_mutex_unlock(&pLua_bigLock);
     }
     else {
         domain = &pLua_domains[0];
@@ -2605,7 +2609,7 @@ static int plua_handler(request_rec *r) {
         int         x = 0,
                     rc = 0;
         lua_thread  *l = lua_acquire_state(r, r->server->server_hostname);
-        lua_State   *L = l->state;
+        lua_State   *L;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         
         // Check if state acuisition worked
@@ -2620,6 +2624,7 @@ static int plua_handler(request_rec *r) {
         /*
          * Set up the lua_thread struct and change to the current directory.
          */
+        L = l->state;
         l->r = r;
         l->written = 0;
         l->errorLevel = LUA_PERROR;
@@ -2727,7 +2732,7 @@ static void module_init(apr_pool_t *pool) {
     pthread_mutex_init(&pLua_bigLock, 0);
     if (!pLua_domains) {
         pLua_domainsAllocated = 1;
-        pLua_domains = calloc(1, sizeof(lua_domain));
+        pLua_domains = calloc(2, sizeof(lua_domain));
         pthread_mutex_init(&pLua_domains[0].mutex, 0);
         pLua_domains[0].pool = pool;
         sprintf(pLua_domains[0].domain, "localDomain");
