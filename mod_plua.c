@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        32
+#define PLUA_VERSION        33
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -38,12 +38,15 @@
 #   include <httpd.h>
 #   include <http_protocol.h>
 #   include <http_config.h>
+#   include <http_log.h>
 #   include <apr_dbd.h>
 #else
 #   include <apr-1.0/apr_dbd.h>
 #   include <apache2/httpd.h>
 #   include <apache2/http_protocol.h>
 #   include <apache2/http_config.h>
+#   include <apache2/http_log.h>
+#   include <apache2/mod_log_config.h>
 #   include <unistd.h>
 #include <pthread.h>
 #endif
@@ -85,9 +88,10 @@ static int      LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int      LUA_FILES = 50;     /* Number of files to keep cached */
 static int      LUA_TIMEOUT = 0;    /* Maximum number of seconds a lua script may take (set to 0 to disable) */
 static int      LUA_PERROR = 1;
-static int      LUA_MULTIDOMAIN = 0; /* Enable/disable multidomain support (experimental) */
+static int      LUA_MULTIDOMAIN = 1; /* Enable/disable multidomain support (experimental) */
 static apr_pool_t* LUA_BIGPOOL = 0;
 static pthread_mutex_t pLua_bigLock;
+static int      pLua_logCounter = 0;
 static int pLua_domainsAllocated = 1;
 static uint32_t then = 0;
 typedef struct
@@ -192,7 +196,7 @@ static void pthread_mutex_unlock(HANDLE mutex) {
         return;
 }
 
-static void pthread_mutex_init(HANDLE* mutex) {
+static void pthread_mutex_init(HANDLE* mutex, int blargh) {
     *mutex = CreateMutex( 
             NULL,              // default security attributes
             FALSE,             // initially not owned
@@ -224,9 +228,10 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
                 *lineX,
                 *where;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-    if (thread->errorLevel == 0) return;
+    
     err = err ? err : "(nil)";
+    ap_log_rerror("mod_plua.c", 248, APLOG_ERR, 1, thread->r, "mod_plua: error in %s; %s\r\n", filename, err);
+    if (thread->errorLevel == 0) return;
     errX = ap_escape_html(thread->r->pool, err);
     for (x = 1; x < 2048; x++) {
         sprintf(found, ":%u: ", x);
@@ -243,7 +248,6 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
     ap_set_content_type(thread->r, "text/html; charset=ascii");
     filename = filename ? filename : "";
     ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
-    fprintf(stderr, "mod_plua: error in %s; %s\r\n", filename, err);
 }
 
 /*
@@ -479,7 +483,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
     stores it in the cache.
  =======================================================================================================================
  */
-int lua_compile_file(lua_thread *thread, const char *filename, struct stat *statbuf, char rawCompile) {
+int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *statbuf, char rawCompile) {
 
     /*~~~~~~~~~~~~~~~*/
     FILE    *input = 0;
@@ -502,7 +506,7 @@ int lua_compile_file(lua_thread *thread, const char *filename, struct stat *stat
         if (!strcmp(thread->files[x].filename, filename)) {
 
             /* Is the cached file out of date? */
-            if (statbuf->st_mtime != thread->files[x].modified) {
+            if (statbuf->mtime != thread->files[x].modified) {
                 if (PLUA_DEBUG) ap_rprintf(thread->r, "Deleted out-of-date compiled version at index %u", x);
                 memset(thread->files[x].filename, 0, 256);
                 luaL_unref(thread->state, LUA_REGISTRYINDEX, thread->files[x].refindex);
@@ -563,7 +567,7 @@ int lua_compile_file(lua_thread *thread, const char *filename, struct stat *stat
                 for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
                         strcpy(thread->files[y].filename, filename);
-                        thread->files[y].modified = statbuf->st_mtime;
+                        thread->files[y].modified = statbuf->mtime;
                         thread->files[y].refindex = x;
                         foundSlot = 1;
                         thread->youngest = y;
@@ -585,7 +589,7 @@ int lua_compile_file(lua_thread *thread, const char *filename, struct stat *stat
                     /* Update the slot with new info. */
                     thread->youngest = y;
                     strcpy(thread->files[y].filename, filename);
-                    thread->files[y].modified = statbuf->st_mtime;
+                    thread->files[y].modified = statbuf->mtime;
                     thread->files[y].refindex = x;
                     if (PLUA_DEBUG) ap_rprintf(thread->r, "Pushed the into the file list at index %u, replacing an old file<br/>", y);
                 }
@@ -1685,6 +1689,24 @@ static int lua_flush(lua_State *L) {
     }
     return 0;
 }
+
+
+/*
+ =======================================================================================================================
+    lua_sleep(lua_State *L): sleep(N): Sleeps for N seconds
+ =======================================================================================================================
+ */
+static int lua_sleep(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~*/
+    int n = 1;
+    /*~~~~~~~~~~~~~~~~*/
+
+    luaL_checktype(L, 1, LUA_TNUMBER);
+    n = luaL_optint(L, 1, 1);
+    sleep(n);
+    return 0;
+}
 /*
  =======================================================================================================================
     lua_echo(lua_State *L): echo(...): Same as print(...) in Lua.
@@ -2316,14 +2338,16 @@ static int lua_includeFile(lua_State *L) {
     if (thread) {
 
         /*~~~~~~~~~~~~~~~~~*/
-        struct stat fileinfo;
+        apr_finfo_t fileinfo;
         int         rc = 0;
         /*~~~~~~~~~~~~~~~~~*/
 
         luaL_checktype(L, 1, LUA_TSTRING);
         filename = lua_tostring(L, 1);
         lua_settop(L, 0);
-        if (stat(filename, &fileinfo) == -1) lua_pushboolean(L, 0);
+        apr_stat(&fileinfo, filename, APR_FINFO_NORM, thread->r->pool);
+        rc = ((fileinfo.filetype != APR_NOFILE) && !(fileinfo.filetype & APR_DIR));
+        if (!rc) lua_pushboolean(L, 0);
         else {
             rc = lua_compile_file(thread, filename, &fileinfo, compileRaw);
             if (rc > 0) {
@@ -2356,6 +2380,7 @@ static const luaL_reg   Global_methods[] =
     { "echo", lua_echo },
     { "print", lua_echo },
     { "flush", lua_flush },
+    { "sleep", lua_sleep },
     { "header", lua_header },
     { "setContentType", lua_setContentType },
     { "getEnv", lua_getEnv },
@@ -2421,7 +2446,7 @@ void lua_init_state(lua_thread *thread, int x) {
 void pLua_init_states(lua_domain* domain) {
     int y;
     domain->states = (lua_thread *) apr_pcalloc(domain->pool, (LUA_STATES+1) * sizeof(lua_thread));
-    fprintf(stderr, "Allocated new domain pool for '%s' of size %lu in space %p <Not an Error>\r\n", domain->domain, LUA_STATES * sizeof(lua_thread), domain->states);
+    fprintf(stderr, "[%lu / %u] mod_plua.c [notice] Allocated new domain pool for '%s' of size %lu in space %p <Not an Error>\r\n", time(0), pLua_logCounter++, domain->domain, LUA_STATES * sizeof(lua_thread), domain->states);
     for (y = 0; y < LUA_STATES; y++) {
         if (!domain->states[y].state) {
             domain->states[y].files = apr_pcalloc(domain->pool, (LUA_FILES+1) * sizeof(pLua_files));
@@ -2553,26 +2578,23 @@ static int plua_handler(request_rec *r) {
 
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
     int         exists = 1;
-    struct stat statbuf;
     char        compileRaw = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
-
+    
     /* Check if we are being called, and that the request method is one we can handle. */
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
 
     /* Check if the file requested really exists. */
-    if (stat(r->filename, &statbuf) == -1) exists = 0;
-    else if (statbuf.st_mode & 0x00400000)  /* Is it a folder? */
-        exists = 0;
-
+    
+    exists = ((r->finfo.filetype != APR_NOFILE) && !(r->finfo.filetype & APR_DIR));
     /* If no file (or if it's a folder), print out the 404 message. */
     if (!exists) {
         ap_set_content_type(r, "text/html;charset=ascii");
         ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
         ap_rputs("<html><head><title>mod_pLua: Error</title></head>", r);
-        ap_rprintf(r, "<body><h1>No such file: %s</h1></body></html>", r->unparsed_uri);
-        return (HTTP_NOT_FOUND);
+        ap_rprintf(r, "<body><h3>No such script file: %s</h3></body></html>", r->filename);
+        return (OK);
 
         /* Else start processing the request */
     } else {
@@ -2636,7 +2658,7 @@ static int plua_handler(request_rec *r) {
         }
 
         /* Call the compiler function and let it either compile or read from cache. */
-        rc = lua_compile_file(l, r->filename, &statbuf, compileRaw);
+        rc = lua_compile_file(l, r->filename, &r->finfo, compileRaw);
 
         /* Compiler error? */
         if (rc < 1) {
@@ -2708,7 +2730,7 @@ static void module_init(apr_pool_t *pool) {
         pLua_domains = calloc(1, sizeof(lua_domain));
         pthread_mutex_init(&pLua_domains[0].mutex, 0);
         pLua_domains[0].pool = pool;
-        sprintf(pLua_domains[0].domain, "localhost");
+        sprintf(pLua_domains[0].domain, "localDomain");
         pLua_init_states(&pLua_domains[0]);
     }
     
@@ -2723,6 +2745,7 @@ static void module_init(apr_pool_t *pool) {
  =======================================================================================================================
  */
 static void register_hooks(apr_pool_t *pool) {
+    pLua_domains = 0;
     module_init(pool);
     ap_hook_handler(plua_handler, NULL, NULL, APR_HOOK_LAST);
 }
