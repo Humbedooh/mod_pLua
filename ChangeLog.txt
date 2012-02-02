@@ -1,5 +1,5 @@
 0.34:
-- compileTime() will now return the time of the initial HTTP request as reported by Apache
+- compileTime() on UNIX will now return the time of the initial HTTP request as reported by Apache
 - pLuaMultiDomain is now enabled by default - let's see how it goes
 - Added pLuaLogLevel directive for setting what gets logged in the error.log file
 - Added a new unified pLua_getClock() function for accessing the precise time on all platforms
