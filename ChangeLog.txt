@@ -1,8 +1,9 @@
 0.34:
-- Changed the clock() and compileTime() functions on UNIX systems to use apr_time_now()
-- The time of the initial HTTP request is now available in the getEnv() tables
+- compileTime() will now return the time of the initial HTTP request as reported by Apache
 - pLuaMultiDomain is now enabled by default - let's see how it goes
 - Added pLuaLogLevel directive for setting what gets logged in the error.log file
+- Added a new unified pLua_getClock() function for accessing the precise time on all platforms
+- Calling clock() and compileTime() on any platform will now return the correct unix timestamp with microsecond accuracy
 
 0.33:
 - Added the sleep(N) function for primarilly testing purposes

@@ -91,6 +91,7 @@ static int      LUA_PERROR = 1;
 static int      LUA_LOGLEVEL = 1;   /* 0: Disable, 1: Log errors, 2: Log warnings, 3: Log everything, including script errors */
 static int      LUA_MULTIDOMAIN = 1; /* Enable/disable multidomain support (experimental) */
 static apr_pool_t* LUA_BIGPOOL = 0;
+
 static pthread_mutex_t pLua_bigLock;
 static int pLua_domainsAllocated = 1;
 static uint32_t then = 0;
@@ -140,6 +141,15 @@ typedef struct
     int                     alive;
     apr_pool_t              *pool;
 } dbStruct;
+
+typedef union {
+    struct {
+        uint32_t seconds;
+        uint32_t nanoseconds;
+    } ;
+    uint64_t quadPart;
+} pLuaClock;
+static pLuaClock  pLua_clockOffset;
 #ifndef PRIx32
 #   define PRIx32  "x"
 #endif
@@ -223,7 +233,7 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     char        *errX;
     const char  *err = lua_tostring(thread->state, -1);
-    int         x = 0,y;
+    int         x = 0;
     char        found[8],
                 *lineX,
                 *where;
@@ -235,7 +245,6 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
     for (x = 1; x < 2048; x++) {
         sprintf(found, ":%u: ", x);
         if ((where = strstr(errX, found)) != 0) {
-            y = x;
             lineX = (char*) apr_pcalloc(thread->r->pool, strlen(errX) + 50);
             if (lineX) {
                 sprintf(lineX, "On line <code style='font-weight: bold; color:#774411;'>%u:</code> %s", x, where + strlen(found));
@@ -1899,6 +1908,9 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Request-Time");
         lua_pushinteger(thread->state, thread->r->request_time);
         lua_rawset(L, -3);
+        lua_pushstring(thread->state, "Clock-Offset");
+        lua_pushinteger(thread->state, pLua_clockOffset.seconds);
+        lua_rawset(L, -3);
         lua_pushstring(thread->state, "Remote-Address");
 #if (AP_SERVER_MINORVERSION_NUMBER > 2)
         lua_pushstring(thread->state, thread->r->connection->client_ip);
@@ -1993,6 +2005,36 @@ static int lua_fileinfo(lua_State *L)
     return (1);
 }
 
+static pLuaClock pLua_getClock(char useAPR)
+{
+    #ifdef _WIN32
+    LARGE_INTEGER   cycles;
+    LARGE_INTEGER   frequency;
+    #else
+        apr_time_t now;
+    #endif
+
+        pLuaClock cstr;
+    #ifdef _WIN32
+        if (!useAPR) {
+            QueryPerformanceCounter(&cycles);
+            QueryPerformanceFrequency(&frequency);
+
+            cstr.seconds = cycles.QuadPart / frequency.QuadPart;
+            cstr.nanoseconds = cycles.QuadPart % (cycles.QuadPart * (1000000000 / frequency.QuadPart));
+        }
+        else {
+            apr_time_t now = apr_time_now();
+            cstr.seconds =  now/1000000;
+            cstr.nanoseconds = (now % 1000000)*1000; 
+        }
+    #else
+        now = apr_time_now();
+        cstr.seconds =  now/1000000;
+        cstr.nanoseconds = (now % 1000000)*1000; 
+    #endif
+        return cstr;
+}
 /*
  =======================================================================================================================
     lua_clock(lua_State *L): clock(): Returns a high definition clock value for use with benchmarking.
@@ -2000,38 +2042,14 @@ static int lua_fileinfo(lua_State *L)
  */
 static int lua_clock(lua_State *L)
 {
-    /*~~~~~~~~~~~~~~~~*/
-#ifdef _WIN32
-    clock_t         f;
-    LARGE_INTEGER   moo;
-    LARGE_INTEGER   cow;
-#else
-    apr_time_t now;
-#endif
-    /*~~~~~~~~~~~~~~~~*/
-
-    lua_settop(L, 0);
+    pLuaClock now = pLua_getClock(0);
     lua_newtable(L);
-#ifdef _WIN32
-    QueryPerformanceCounter(&moo);
-    QueryPerformanceFrequency(&cow);
-    f = clock();
     lua_pushliteral(L, "seconds");
-    lua_pushinteger(L, moo.QuadPart / cow.QuadPart);
+    lua_pushinteger(L, now.seconds + pLua_clockOffset.seconds);
     lua_rawset(L, -3);
     lua_pushliteral(L, "nanoseconds");
-    lua_pushinteger(L, moo.QuadPart % cow.QuadPart * (1000000000 / cow.QuadPart));
+    lua_pushinteger(L, now.nanoseconds + pLua_clockOffset.nanoseconds); 
     lua_rawset(L, -3);
-#else
-    now = apr_time_now();
-    lua_pushliteral(L, "seconds");
-    lua_pushinteger(L, now/1000000);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "nanoseconds");
-    lua_pushinteger(L, (now % 1000000)*1000); 
-    lua_rawset(L, -3);
-    
-#endif
     return (1);
 }
 
@@ -2453,7 +2471,7 @@ void pLua_init_states(lua_domain* domain) {
     int y;
     domain->states = (lua_thread *) apr_pcalloc(domain->pool, (LUA_STATES+1) * sizeof(lua_thread));
     
-    if (LUA_LOGLEVEL >= 2) ap_log_perror("mod_plua.c", 2456, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u", domain->domain, (uint32_t) LUA_STATES * sizeof(lua_thread));
+    if (LUA_LOGLEVEL >= 2) ap_log_perror("mod_plua.c", 2456, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u", domain->domain, ((uint32_t) LUA_STATES * sizeof(lua_thread)));
     for (y = 0; y < LUA_STATES; y++) {
         if (!domain->states[y].state) {
             domain->states[y].files = apr_pcalloc(domain->pool, (LUA_FILES+1) * sizeof(pLua_files));
@@ -2535,8 +2553,8 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
         QueryPerformanceCounter(&moo);
         QueryPerformanceFrequency(&cow);
-        L->t.tv_sec = (moo.QuadPart / cow.QuadPart);
-        L->t.tv_nsec = (moo.QuadPart % cow.QuadPart) * (1000000000 / cow.QuadPart);
+        L->t.tv_sec = (moo.QuadPart / cow.QuadPart) + pLua_clockOffset.seconds;
+        L->t.tv_nsec = (moo.QuadPart % cow.QuadPart) * (1000000000 / cow.QuadPart) + pLua_clockOffset.nanoseconds;
 #else
         apr_time_t now = r->request_time;
         L->t.tv_sec = (now / 1000000);
@@ -2734,8 +2752,12 @@ static void module_init(apr_pool_t *pool) {
 
     /*~~*/
     int x;
+    pLuaClock aprClock, cpuClock;
     /*~~*/
-    
+    aprClock = pLua_getClock(1);
+    cpuClock = pLua_getClock(0);
+    pLua_clockOffset.seconds = aprClock.seconds - cpuClock.seconds;
+    pLua_clockOffset.nanoseconds = aprClock.nanoseconds - cpuClock.nanoseconds;
     LUA_BIGPOOL = pool;
     pthread_mutex_init(&pLua_bigLock, 0);
     if (!pLua_domains) {
