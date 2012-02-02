@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        33
+#define PLUA_VERSION        34
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -88,7 +88,8 @@ static int      LUA_RUNS = 500;     /* Restart a state after 500 sessions */
 static int      LUA_FILES = 50;     /* Number of files to keep cached */
 static int      LUA_TIMEOUT = 0;    /* Maximum number of seconds a lua script may take (set to 0 to disable) */
 static int      LUA_PERROR = 1;
-static int      LUA_MULTIDOMAIN = 0; /* Enable/disable multidomain support (experimental) */
+static int      LUA_LOGLEVEL = 1;   /* 0: Disable, 1: Log errors, 2: Log warnings, 3: Log everything, including script errors */
+static int      LUA_MULTIDOMAIN = 1; /* Enable/disable multidomain support (experimental) */
 static apr_pool_t* LUA_BIGPOOL = 0;
 static pthread_mutex_t pLua_bigLock;
 static int pLua_domainsAllocated = 1;
@@ -222,20 +223,20 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     char        *errX;
     const char  *err = lua_tostring(thread->state, -1);
-    int         x = 0;
+    int         x = 0,y;
     char        found[8],
                 *lineX,
                 *where;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     
     err = err ? err : "(nil)";
-    ap_log_rerror("mod_plua.c", 248, APLOG_ERR, 1, thread->r, "mod_plua: error in %s; %s\r\n", filename, err);
     if (thread->errorLevel == 0) return;
     errX = ap_escape_html(thread->r->pool, err);
     for (x = 1; x < 2048; x++) {
         sprintf(found, ":%u: ", x);
         if ((where = strstr(errX, found)) != 0) {
-            lineX = apr_pcalloc(thread->r->pool, strlen(errX) + 50);
+            y = x;
+            lineX = (char*) apr_pcalloc(thread->r->pool, strlen(errX) + 50);
             if (lineX) {
                 sprintf(lineX, "On line <code style='font-weight: bold; color:#774411;'>%u:</code> %s", x, where + strlen(found));
                 errX = lineX;
@@ -243,7 +244,8 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
             break;
         }
     }
-
+	
+    if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
     ap_set_content_type(thread->r, "text/html; charset=ascii");
     filename = filename ? filename : "";
     ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
@@ -1894,6 +1896,9 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "pLua-Version");
         lua_pushinteger(thread->state, PLUA_VERSION);
         lua_rawset(L, -3);
+        lua_pushstring(thread->state, "Request-Time");
+        lua_pushinteger(thread->state, thread->r->request_time);
+        lua_rawset(L, -3);
         lua_pushstring(thread->state, "Remote-Address");
 #if (AP_SERVER_MINORVERSION_NUMBER > 2)
         lua_pushstring(thread->state, thread->r->connection->client_ip);
@@ -2001,7 +2006,7 @@ static int lua_clock(lua_State *L)
     LARGE_INTEGER   moo;
     LARGE_INTEGER   cow;
 #else
-    struct timespec t;
+    apr_time_t now;
 #endif
     /*~~~~~~~~~~~~~~~~*/
 
@@ -2018,13 +2023,14 @@ static int lua_clock(lua_State *L)
     lua_pushinteger(L, moo.QuadPart % cow.QuadPart * (1000000000 / cow.QuadPart));
     lua_rawset(L, -3);
 #else
-    clock_gettime(CLOCK_MONOTONIC, &t);
+    now = apr_time_now();
     lua_pushliteral(L, "seconds");
-    lua_pushinteger(L, t.tv_sec);
+    lua_pushinteger(L, now/1000000);
     lua_rawset(L, -3);
     lua_pushliteral(L, "nanoseconds");
-    lua_pushinteger(L, t.tv_nsec);
+    lua_pushinteger(L, (now % 1000000)*1000); 
     lua_rawset(L, -3);
+    
 #endif
     return (1);
 }
@@ -2425,6 +2431,7 @@ void lua_init_state(lua_thread *thread, int x) {
     int         y;
     /*~~~~~~~~~~~*/
 
+    thread->working = 0;
     thread->youngest = 0;
     thread->state = luaL_newstate();
     thread->sessions = 0;
@@ -2446,7 +2453,7 @@ void pLua_init_states(lua_domain* domain) {
     int y;
     domain->states = (lua_thread *) apr_pcalloc(domain->pool, (LUA_STATES+1) * sizeof(lua_thread));
     
-    fprintf(stderr, "mod_plua.c [notice] Allocated new domain pool for '%s' of size %lu in space %p <Not an Error>\r\n", domain->domain, LUA_STATES * sizeof(lua_thread), domain->states);
+    if (LUA_LOGLEVEL >= 2) ap_log_perror("mod_plua.c", 2456, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u", domain->domain, (uint32_t) LUA_STATES * sizeof(lua_thread));
     for (y = 0; y < LUA_STATES; y++) {
         if (!domain->states[y].state) {
             domain->states[y].files = apr_pcalloc(domain->pool, (LUA_FILES+1) * sizeof(pLua_files));
@@ -2485,13 +2492,12 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
         // If no pool was allocated, make one!
         if (!domain) {
-            fprintf(stderr, "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>\r\n", hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated+3));
-            fflush(stderr);
+            if (LUA_LOGLEVEL >= 2) ap_log_perror("mod_plua.c", 2495, APLOG_NOTICE, APR_ENOPOOL, LUA_BIGPOOL, "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>", hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated+3));
             pLua_domainsAllocated++;
-            pLua_domains = realloc(pLua_domains, sizeof(lua_domain) * (pLua_domainsAllocated+2));
+            pLua_domains = (lua_domain*) realloc(pLua_domains, sizeof(lua_domain) * (pLua_domainsAllocated+2));
             if (pLua_domains == 0) {
-                fprintf(stderr, "<mod_pLua>: Realloc failure! This is bad :( \r\n");
-                fflush(stderr);
+                if (LUA_LOGLEVEL >= 1) ap_log_perror("mod_plua.c", 2500, APLOG_CRIT, APR_ENOPOOL, LUA_BIGPOOL, "mod_pLua: Realloc failure! This is bad :(");
+               
                 return 0;
             }
             domain = &pLua_domains[pLua_domainsAllocated-1];
@@ -2510,7 +2516,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
     
     pthread_mutex_lock(&domain->mutex);
     for (x = 0; x < LUA_STATES; x++) {
-        if (!domain->states[x].working && domain->states[x].state) {
+        if (domain->states[x].working == 0 && domain->states[x].state) {
             domain->states[x].working = 1;
             domain->states[x].sessions++;
             L = &domain->states[x];
@@ -2518,7 +2524,6 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
             break;
         }
     }
-
     pthread_mutex_unlock(&domain->mutex);
     if (found)
     {
@@ -2533,7 +2538,9 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
         L->t.tv_sec = (moo.QuadPart / cow.QuadPart);
         L->t.tv_nsec = (moo.QuadPart % cow.QuadPart) * (1000000000 / cow.QuadPart);
 #else
-        clock_gettime(CLOCK_MONOTONIC, &L->t);
+        apr_time_t now = r->request_time;
+        L->t.tv_sec = (now / 1000000);
+        L->t.tv_nsec = ((now % 1000000)*1000);
 #endif
         return (L);
     } else {
@@ -2597,7 +2604,7 @@ static int plua_handler(request_rec *r) {
         ap_set_content_type(r, "text/html;charset=ascii");
         ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
         ap_rputs("<html><head><title>mod_pLua: Error</title></head>", r);
-        ap_rprintf(r, "<body><h3>No such script file: %s</h3></body></html>", r->filename);
+        ap_rprintf(r, "<body><h3>No such script file: %s</h3></body></html>", r->uri);
         return (OK);
 
         /* Else start processing the request */
@@ -2618,6 +2625,7 @@ static int plua_handler(request_rec *r) {
         ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
         ap_rputs("<html><head><title>mod_pLua: Grand supreme error!</title></head>", r);
         ap_rprintf(r, "<body><h1>Memory allocation failed for hostname: %s</h1></body></html>", r->server->server_hostname);
+        
         return (HTTP_INTERNAL_SERVER_ERROR);
         }
 
@@ -2850,6 +2858,25 @@ const char *pLua_set_Multi(cmd_parms *cmd, void *cfg, const char *arg) {
 
 /*
  =======================================================================================================================
+    pLuaLogLevel N: Sets the logging level for pLua 
+ *  0 = disable all
+ *  1 = errors
+ *  2 = module notices
+ *  3 = everything including script errors
+ =======================================================================================================================
+ */
+const char *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
+    int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
+    LUA_LOGLEVEL = x > 0 ? x : 0;
+    return (NULL);
+}
+
+/*
+ =======================================================================================================================
     pLuaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
     so having 200 elements in 50 states will use 3MB of memory. If you run a large server with many scripts and
     domains, you may want to set this to a higher number, fx. 1000.
@@ -2876,14 +2903,15 @@ static const command_rec        my_directives[] =
     AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
     AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
     AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
-    AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file"),
+    AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file."),
     AP_INIT_TAKE1
         (
             "pLuaTimeout", pLua_set_Timeout, NULL, OR_ALL,
                 "Sets the maximum number of seconds a pLua script may take to execute. Set to 0 to disable."
         ),
     AP_INIT_TAKE1("pLuaError", pLua_set_Logging, NULL, OR_ALL, "Sets the error logging level. Set to 0 to disable errors, 1 to enable."),
-    AP_INIT_TAKE1("pLuaMultiDomain", pLua_set_Multi, NULL, OR_ALL, "Enables or disabled support for domain state pools"),
+    AP_INIT_TAKE1("pLuaMultiDomain", pLua_set_Multi, NULL, OR_ALL, "Enables or disabled support for domain state pools."),
+    AP_INIT_TAKE1("pLuaLogLevel", pLua_set_LogLevel, NULL, OR_ALL, "Sets the logging level for pLua (0 = disable all, 1 = errors, 2 = module notices, 3 = everything including script errors)."),
     { NULL }
 };
 module AP_MODULE_DECLARE_DATA   plua_module = { STANDARD20_MODULE_STUFF, NULL, NULL, NULL, NULL, my_directives, register_hooks };

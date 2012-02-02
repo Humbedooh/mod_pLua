@@ -1,3 +1,9 @@
+0.34:
+- Changed the clock() and compileTime() functions on UNIX systems to use apr_time_now()
+- The time of the initial HTTP request is now available in the getEnv() tables
+- pLuaMultiDomain is now enabled by default - let's see how it goes
+- Added pLuaLogLevel directive for setting what gets logged in the error.log file
+
 0.33:
 - Added the sleep(N) function for primarilly testing purposes
 - mod_pLua now uses the file information passed on by Apache to speed things up
