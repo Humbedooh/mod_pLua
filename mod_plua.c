@@ -14,11 +14,10 @@
 #define PLUA_VERSION        35
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
-#define MAX_VARS            750
-#define MAX_MULTIPLES       25
+#define MAX_VARS            500 // MAximum number of HTTP GET/POST variables
+#define MAX_MULTIPLES       50  // Maximum number of chained GET/POST variables
 #define PLUA_DEBUG          0
 #define PLUA_LSTRING        1
-#define PLUA_DOMAINS        25
 #ifdef _WIN32
 #   define sleep(a)    Sleep(a * 1000)
 #endif
@@ -261,8 +260,11 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
             break;
         }
     }
-
-    if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
+	#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
+		if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
+	#else
+		if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
+	#endif
     ap_set_content_type(thread->r, "text/html; charset=ascii");
     filename = filename ? filename : "";
     ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
@@ -1388,6 +1390,7 @@ static int lua_dbgc(lua_State *L) {
     }
     
     lua_settop(L, 0);
+    return 0;
 }
 /*
  =======================================================================================================================
@@ -2547,7 +2550,11 @@ void pLua_init_states(lua_domain *domain) {
     domain->states = (lua_thread *) apr_pcalloc(domain->pool, (LUA_STATES + 1) * sizeof(lua_thread));
     y = (LUA_STATES + 1) * sizeof(lua_thread);
     if (LUA_LOGLEVEL >= 2) {
+        #if (AP_SERVER_MINORVERSION_NUMBER <= 2)
         ap_log_perror("mod_plua.c", 2456, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u", domain->domain, y);
+        #else
+        ap_log_perror("mod_plua.c", 2456, 1, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u", domain->domain, y);
+        #endif
     }
 
     for (y = 0; y < LUA_STATES; y++) {

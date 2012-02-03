@@ -1,6 +1,8 @@
 0.35:
-- Databases opened with dbopen() should now properly close if GC'ed
+- Databases opened with dbopen() should now properly close if GC'ed in Lua 5.2
 - The GC call for databases now has its own function for cleaning up, as opposed to using db:close()
+- Changed the maximum number of variables and chained variables allowed in a GET/POST request
+- Fixed a bug that would crash mod_pLua on Apache 2.4 when a compiler or runtime error was met
 
 0.34:
 - compileTime() on UNIX will now return the time of the initial HTTP request as reported by Apache
