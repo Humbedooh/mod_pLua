@@ -14,8 +14,8 @@
 #define PLUA_VERSION        35
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
-#define MAX_VARS            500 // MAximum number of HTTP GET/POST variables
-#define MAX_MULTIPLES       50  // Maximum number of chained GET/POST variables
+#define MAX_VARS            500 /* MAximum number of HTTP GET/POST variables */
+#define MAX_MULTIPLES       50  /* Maximum number of chained GET/POST variables */
 #define PLUA_DEBUG          0
 #define PLUA_LSTRING        1
 #ifdef _WIN32
@@ -260,11 +260,12 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
             break;
         }
     }
-	#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
-		if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
-	#else
-		if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
-	#endif
+
+#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
+    if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
+#else
+    if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
+#endif
     ap_set_content_type(thread->r, "text/html; charset=ascii");
     filename = filename ? filename : "";
     ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
@@ -1269,6 +1270,7 @@ static int lua_b64enc(lua_State *L) {
 
 /*
  =======================================================================================================================
+    lua_fileexists(lua_State *L): file.exists(filename): Returns true if a file/folder exists, false otherwise.
  =======================================================================================================================
  */
 static int lua_fileexists(lua_State *L) {
@@ -1345,7 +1347,7 @@ static int lua_dbclose(lua_State *L) {
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
-    
+
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_rawgeti(L, 1, 0);
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
@@ -1357,12 +1359,11 @@ static int lua_dbclose(lua_State *L) {
         db->alive = 0;
         apr_pool_destroy(db->pool);
     }
-    
+
     lua_settop(L, 0);
     lua_pushnumber(L, rc);
     return (1);
 }
-
 
 /*
  =======================================================================================================================
@@ -1379,7 +1380,6 @@ static int lua_dbgc(lua_State *L) {
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_rawgeti(L, 1, 0);
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
-
     db = (dbStruct *) lua_topointer(L, -1);
     if (db && db->alive) {
         rc = apr_dbd_close(db->driver, db->handle);
@@ -1388,10 +1388,11 @@ static int lua_dbgc(lua_State *L) {
         db->alive = 0;
         apr_pool_destroy(db->pool);
     }
-    
+
     lua_settop(L, 0);
-    return 0;
+    return (0);
 }
+
 /*
  =======================================================================================================================
     lua_dbhandle(lua_State *L): db:active(): Returns true if the connection to the db is still active, false otherwise.
@@ -1590,6 +1591,7 @@ static int lua_dbquery(lua_State *L) {
         lua_pushboolean(L, 0);
         return (1);
     }
+
     return (0);
 }
 
@@ -1651,23 +1653,20 @@ static int lua_dbopen(lua_State *L) {
                 if (rc == APR_SUCCESS) {
                     db->alive = 1;
                     lua_newtable(L);
-                    
-                    // Create metatable for __gc function
-		    luaL_newmetatable(L, "pLua.dbopen");
-		    lua_pushliteral(L, "__gc");
+
+                    /* Create metatable for __gc function */
+                    luaL_newmetatable(L, "pLua.dbopen");
+                    lua_pushliteral(L, "__gc");
                     lua_pushcfunction(L, lua_dbgc);
-                    
-		    lua_rawset(L, -3);
+                    lua_rawset(L, -3);
                     lua_setmetatable(L, -2);
-                    
-                    // Register db functions
+
+                    /* Register db functions */
                     luaL_register(L, NULL, db_methods);
-//                    lua_newuserdata()
+
+                    /* lua_newuserdata() */
                     lua_pushlightuserdata(L, db);
                     lua_rawseti(L, -2, 0);
-                    
-                    
-
                     return (1);
                 } else {
                     lua_pushnil(L);
@@ -2549,12 +2548,14 @@ void pLua_init_states(lua_domain *domain) {
 
     domain->states = (lua_thread *) apr_pcalloc(domain->pool, (LUA_STATES + 1) * sizeof(lua_thread));
     y = (LUA_STATES + 1) * sizeof(lua_thread);
-    if (LUA_LOGLEVEL >= 2) {
-        #if (AP_SERVER_MINORVERSION_NUMBER <= 2)
+    if (LUA_LOGLEVEL >= 2)
+    {
+#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
         ap_log_perror("mod_plua.c", 2456, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u", domain->domain, y);
-        #else
-        ap_log_perror("mod_plua.c", 2456, 1, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u", domain->domain, y);
-        #endif
+#else
+        ap_log_perror("mod_plua.c", 2456, 1, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u",
+                      domain->domain, y);
+#endif
     }
 
     for (y = 0; y < LUA_STATES; y++) {
@@ -2590,7 +2591,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
         /*
          * pthread_mutex_lock(&pLua_bigLock);
-         * * Look for an existing domain pool
+         * Look for an existing domain pool
          */
         for (x = 0; x < pLua_domainsAllocated; x++) {
             if (!strcmp(hostname, pLua_domains[x].domain)) {
@@ -2598,7 +2599,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
                 /*
                  * fprintf(stderr, "Found match (%s) for (%s), returning handle\r\n", pLua_domains[x].domain, hostname);
-                 * * fflush(stderr);
+                 * fflush(stderr);
                  */
                 break;
             }
@@ -2606,13 +2607,14 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
         /* If no pool was allocated, make one! */
         if (!domain) {
-            if (LUA_LOGLEVEL >= 2) {
-				#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
+            if (LUA_LOGLEVEL >= 2)
+            {
+#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
                 ap_log_perror("mod_plua.c", 2495, APLOG_NOTICE, APR_ENOPOOL, LUA_BIGPOOL,
                               "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>",
                               hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated + 3));
 #else
-				ap_log_perror("mod_plua.c", 2495, 1, APLOG_NOTICE, APR_ENOPOOL, LUA_BIGPOOL,
+                ap_log_perror("mod_plua.c", 2495, 1, APLOG_NOTICE, APR_ENOPOOL, LUA_BIGPOOL,
                               "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>",
                               hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated + 3));
 #endif
@@ -2621,12 +2623,13 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
             pLua_domainsAllocated++;
             pLua_domains = (lua_domain *) realloc(pLua_domains, sizeof(lua_domain) * (pLua_domainsAllocated + 2));
             if (pLua_domains == 0) {
-                if (LUA_LOGLEVEL >= 1) {
-					#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
+                if (LUA_LOGLEVEL >= 1)
+                {
+#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
                     ap_log_perror("mod_plua.c", 2500, APLOG_CRIT, APR_ENOPOOL, LUA_BIGPOOL, "mod_pLua: Realloc failure! This is bad :(");
-					#else
-					ap_log_perror("mod_plua.c", 2500, 1, APLOG_CRIT, APR_ENOPOOL, LUA_BIGPOOL, "mod_pLua: Realloc failure! This is bad :(");
-					#endif
+#else
+                    ap_log_perror("mod_plua.c", 2500, 1, APLOG_CRIT, APR_ENOPOOL, LUA_BIGPOOL, "mod_pLua: Realloc failure! This is bad :(");
+#endif
                 }
 
                 return (0);
