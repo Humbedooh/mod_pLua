@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        34
+#define PLUA_VERSION        35
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
 #define MAX_VARS            750
@@ -1344,6 +1344,8 @@ static int lua_dbclose(lua_State *L) {
     apr_status_t    rc = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
+    
+    
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_rawgeti(L, 1, 0);
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
@@ -1355,7 +1357,8 @@ static int lua_dbclose(lua_State *L) {
         db->alive = 0;
         apr_pool_destroy(db->pool);
     }
-
+    
+    
     lua_settop(L, 0);
     lua_pushnumber(L, rc);
     return (1);
@@ -1559,7 +1562,6 @@ static int lua_dbquery(lua_State *L) {
         lua_pushboolean(L, 0);
         return (1);
     }
-
     return (0);
 }
 
@@ -1573,7 +1575,6 @@ static const luaL_reg   db_methods[] =
     { "query", lua_dbquery },
     { "run", lua_dbdo },
     { "active", lua_dbhandle },
-    { "__gc", lua_dbclose },
     { 0, 0 }
 };
 
@@ -1622,9 +1623,21 @@ static int lua_dbopen(lua_State *L) {
                 if (rc == APR_SUCCESS) {
                     db->alive = 1;
                     lua_newtable(L);
+                    
+                    // Create metatable for __gc function
+		    luaL_newmetatable(L, "pLua.dbopen");
+		    lua_pushliteral(L, "__gc");
+                    lua_pushcfunction(L, lua_dbclose);
+		    lua_rawset(L, -3);
+                    lua_setmetatable(L, -2);
+                    
+                    // Register db functions
                     luaL_register(L, NULL, db_methods);
                     lua_pushlightuserdata(L, db);
                     lua_rawseti(L, -2, 0);
+                    
+                    
+
                     return (1);
                 } else {
                     lua_pushnil(L);
@@ -2560,16 +2573,26 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
         /* If no pool was allocated, make one! */
         if (!domain) {
             if (LUA_LOGLEVEL >= 2) {
+				#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
                 ap_log_perror("mod_plua.c", 2495, APLOG_NOTICE, APR_ENOPOOL, LUA_BIGPOOL,
                               "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>",
                               hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated + 3));
+#else
+				ap_log_perror("mod_plua.c", 2495, 1, APLOG_NOTICE, APR_ENOPOOL, LUA_BIGPOOL,
+                              "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>",
+                              hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated + 3));
+#endif
             }
 
             pLua_domainsAllocated++;
             pLua_domains = (lua_domain *) realloc(pLua_domains, sizeof(lua_domain) * (pLua_domainsAllocated + 2));
             if (pLua_domains == 0) {
                 if (LUA_LOGLEVEL >= 1) {
+					#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
                     ap_log_perror("mod_plua.c", 2500, APLOG_CRIT, APR_ENOPOOL, LUA_BIGPOOL, "mod_pLua: Realloc failure! This is bad :(");
+					#else
+					ap_log_perror("mod_plua.c", 2500, 1, APLOG_CRIT, APR_ENOPOOL, LUA_BIGPOOL, "mod_pLua: Realloc failure! This is bad :(");
+					#endif
                 }
 
                 return (0);
