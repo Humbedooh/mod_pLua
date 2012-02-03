@@ -1343,8 +1343,6 @@ static int lua_dbclose(lua_State *L) {
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
-
-    
     
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_rawgeti(L, 1, 0);
@@ -1358,12 +1356,39 @@ static int lua_dbclose(lua_State *L) {
         apr_pool_destroy(db->pool);
     }
     
-    
     lua_settop(L, 0);
     lua_pushnumber(L, rc);
     return (1);
 }
 
+
+/*
+ =======================================================================================================================
+    lua_dbgc(lua_State *L): db:__gc(): Garbage collecing function.
+ =======================================================================================================================
+ */
+static int lua_dbgc(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~~~~~*/
+    dbStruct        *db = 0;
+    apr_status_t    rc = 0;
+    /*~~~~~~~~~~~~~~~~~~~~*/
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_rawgeti(L, 1, 0);
+    luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
+
+    db = (dbStruct *) lua_topointer(L, -1);
+    if (db && db->alive) {
+        rc = apr_dbd_close(db->driver, db->handle);
+        db->driver = 0;
+        db->handle = 0;
+        db->alive = 0;
+        apr_pool_destroy(db->pool);
+    }
+    
+    lua_settop(L, 0);
+}
 /*
  =======================================================================================================================
     lua_dbhandle(lua_State *L): db:active(): Returns true if the connection to the db is still active, false otherwise.
@@ -1627,12 +1652,14 @@ static int lua_dbopen(lua_State *L) {
                     // Create metatable for __gc function
 		    luaL_newmetatable(L, "pLua.dbopen");
 		    lua_pushliteral(L, "__gc");
-                    lua_pushcfunction(L, lua_dbclose);
+                    lua_pushcfunction(L, lua_dbgc);
+                    
 		    lua_rawset(L, -3);
                     lua_setmetatable(L, -2);
                     
                     // Register db functions
                     luaL_register(L, NULL, db_methods);
+//                    lua_newuserdata()
                     lua_pushlightuserdata(L, db);
                     lua_rawseti(L, -2, 0);
                     

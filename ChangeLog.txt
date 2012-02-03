@@ -1,3 +1,7 @@
+0.35:
+- Databases opened with dbopen() should now properly close if GC'ed
+- The GC call for databases now has its own function for cleaning up, as opposed to using db:close()
+
 0.34:
 - compileTime() on UNIX will now return the time of the initial HTTP request as reported by Apache
 - pLuaMultiDomain is now enabled by default - let's see how it goes
