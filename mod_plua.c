@@ -2738,15 +2738,8 @@ static int plua_handler(request_rec *r) {
     exists = ((r->finfo.filetype != APR_NOFILE) && !(r->finfo.filetype & APR_DIR));
 
     /* If no file (or if it's a folder), print out the 404 message. */
-    if (!exists) {
-        ap_set_content_type(r, "text/html;charset=ascii");
-        ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
-        ap_rputs("<html><head><title>mod_pLua: Error</title></head>", r);
-        ap_rprintf(r, "<body><h3>No such script file: %s</h3></body></html>", r->uri);
-        return (OK);
-
-        /* Else start processing the request */
-    } else {
+    if (!exists) return (HTTP_NOT_FOUND);
+    else {
 
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         char        *xStart = 0;

@@ -1,3 +1,7 @@
+0.36:
+- Re-enabled the global pool mutex that was shut off for debugging purposes
+- 404 errors now use apache's 404 handler instead.
+
 0.35:
 - Databases opened with dbopen() should now properly close if GC'ed in Lua 5.2
 - The GC call for databases now has its own function for cleaning up, as opposed to using db:close()
