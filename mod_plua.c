@@ -11,13 +11,13 @@
 #define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #define LUA_COMPAT_MODULE   1
-#define PLUA_VERSION        35
+#define PLUA_VERSION        36
 #define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #define MULTIPART_ENCTYPE   "multipart/form-data"
-#define MAX_VARS            500 /* MAximum number of HTTP GET/POST variables */
+#define MAX_VARS            500 /* Maximum number of HTTP GET/POST variables */
 #define MAX_MULTIPLES       50  /* Maximum number of chained GET/POST variables */
 #define PLUA_DEBUG          0
-#define PLUA_LSTRING        1
+#define PLUA_LSTRING        1  /* Use tolstring(binary compatible) or just tostring? */
 #ifdef _WIN32
 #   define sleep(a)    Sleep(a * 1000)
 #endif
@@ -1374,7 +1374,7 @@ static int lua_dbgc(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~~~~~*/
     dbStruct        *db = 0;
-    apr_status_t    rc = 0;
+//    apr_status_t    rc = 0;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
     luaL_checktype(L, 1, LUA_TTABLE);
@@ -1382,7 +1382,7 @@ static int lua_dbgc(lua_State *L) {
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
     db = (dbStruct *) lua_topointer(L, -1);
     if (db && db->alive) {
-        rc = apr_dbd_close(db->driver, db->handle);
+        apr_dbd_close(db->driver, db->handle);
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
@@ -1785,10 +1785,6 @@ static int lua_echo(lua_State *L) {
 
     thread = pLua_get_thread(L);
     if (thread) {
-
-        /*
-         * luaL_checktype(L, 1, LUA_TSTRING);
-         */
         z = lua_gettop(L);
         for (y = 1; y < z; y++) {
             x = 0;
@@ -2589,8 +2585,11 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
      */
     if (LUA_MULTIDOMAIN > 0) {
 
+        
+        // Lock the bigLock mutex in case we need to change the internal pool
+        pthread_mutex_lock(&pLua_bigLock);
+        
         /*
-         * pthread_mutex_lock(&pLua_bigLock);
          * Look for an existing domain pool
          */
         for (x = 0; x < pLua_domainsAllocated; x++) {
@@ -2642,9 +2641,9 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
             pLua_init_states(domain);
         }
 
-        /*
-         * pthread_mutex_unlock(&pLua_bigLock);
-         */
+        // Unlock the mutex
+        pthread_mutex_unlock(&pLua_bigLock);
+        
     } else {
         domain = &pLua_domains[0];
     }
@@ -3016,9 +3015,8 @@ const char *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg) {
 
 /*
  =======================================================================================================================
-    pLuaFiles N Sets the file cache array to hold N elements. Default is 200. Each 100 elements take up 30kb of memory,
-    so having 200 elements in 50 states will use 3MB of memory. If you run a large server with many scripts and
-    domains, you may want to set this to a higher number, fx. 1000.
+ * pLuaRaw <ext>: Sets the handler to treat files with the extension <ext> as plain Lua files.
+ * example: pLuaRaw .lua
  =======================================================================================================================
  */
 const char *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg) {
