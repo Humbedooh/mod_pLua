@@ -2547,10 +2547,10 @@ void pLua_init_states(lua_domain *domain) {
     if (LUA_LOGLEVEL >= 2)
     {
 #if (AP_SERVER_MINORVERSION_NUMBER <= 2)
-        ap_log_perror("mod_plua.c", 2456, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u", domain->domain, y);
+        ap_log_perror("mod_plua.c", 2456, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u (%u states)", domain->domain, y, LUA_STATES);
 #else
-        ap_log_perror("mod_plua.c", 2456, 1, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u",
-                      domain->domain, y);
+        ap_log_perror("mod_plua.c", 2456, 1, APLOG_NOTICE, -1, domain->pool, "Allocated new domain pool for '%s' of size %u (%u states)",
+                      domain->domain, y, LUA_STATES);
 #endif
     }
 
@@ -2858,33 +2858,32 @@ static int plua_handler(request_rec *r) {
     there!).
  =======================================================================================================================
  */
-static void module_init(apr_pool_t *pool) {
+static void module_init(apr_pool_t *pool, server_rec *s) {
 
     /*~~~~~~~~~~~~~~~~~*/
-    int         x;
     pLuaClock   aprClock,
                 cpuClock;
     /*~~~~~~~~~~~~~~~~~*/
 
+    /* Get the difference between apt_time_now and the native clock function if any
+     * This is, at present, only needed by Windows.
+     */
     aprClock = pLua_getClock(1);
     cpuClock = pLua_getClock(0);
     pLua_clockOffset.seconds = aprClock.seconds - cpuClock.seconds;
     pLua_clockOffset.nanoseconds = aprClock.nanoseconds - cpuClock.nanoseconds;
+    
     LUA_BIGPOOL = pool;
     pthread_mutex_init(&pLua_bigLock, 0);
-    if (!pLua_domains) {
-        pLua_domainsAllocated = 1;
-        pLua_domains = calloc(2, sizeof(lua_domain));
-        pthread_mutex_init(&pLua_domains[0].mutex, 0);
-        pLua_domains[0].pool = pool;
-        sprintf(pLua_domains[0].domain, "localDomain");
-        pLua_init_states(&pLua_domains[0]);
-    }
+    pLua_domainsAllocated = 1;
+    pLua_domains = calloc(2, sizeof(lua_domain));
+    pthread_mutex_init(&pLua_domains[0].mutex, 0);
+    pLua_domains[0].pool = pool;
+    sprintf(pLua_domains[0].domain, "localDomain");
+    pLua_init_states(&pLua_domains[0]);
 
     apr_dbd_init(pool);
-    for (x = 0; x < PLUA_RAW_TYPES; x++) {
-        pLua_rawTypes[x] = (char *) apr_pcalloc(pool, 64);
-    }
+    
 }
 
 /*
@@ -2893,9 +2892,12 @@ static void module_init(apr_pool_t *pool) {
  =======================================================================================================================
  */
 static void register_hooks(apr_pool_t *pool) {
-    pLua_domains = 0;
-    module_init(pool);
-    ap_hook_handler(plua_handler, NULL, NULL, APR_HOOK_LAST);
+    int x;
+    for (x = 0; x < PLUA_RAW_TYPES; x++) {
+        pLua_rawTypes[x] = (char *) apr_pcalloc(pool, 64);
+    }
+    ap_hook_child_init(module_init, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_handler(plua_handler, NULL, NULL, APR_HOOK_LAST);    
 }
 
 /*
