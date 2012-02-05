@@ -286,11 +286,11 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
             }
         }
 
-    #if (AP_SERVER_MINORVERSION_NUMBER <= 2)
+        #if (AP_SERVER_MINORVERSION_NUMBER <= 2)
         if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
-    #else
+        #else
         if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
-    #endif
+        #endif
         ap_set_content_type(thread->r, "text/html; charset=ascii");
         filename = filename ? filename : "";
         ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);

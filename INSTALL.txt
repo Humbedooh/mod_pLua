@@ -2,6 +2,8 @@
 Run "./configure" to set up the compiler environment.
 Run "make" to compile the file.
 
+If this should fail horribly, use the rudmentary compile.sh script to compile mod_pLua.
+
 == Installing ==
 Run "make install" to copy the file to /usr/lib/apache2/modules.
 
