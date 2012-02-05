@@ -340,6 +340,7 @@ static int                      lua_header(lua_State *L);
 static int                      lua_flush(lua_State *L);
 static int                      lua_sleep(lua_State *L);
 static int                      lua_echo(lua_State *L);
+static int                      lua_exit(lua_State *L);
 static int                      lua_setContentType(lua_State *L);
 static int                      lua_setErrorLevel(lua_State *L);
 static int                      lua_setReturnCode(lua_State *L);
@@ -370,6 +371,8 @@ const char                      *pLua_set_Logging(cmd_parms *cmd, void *cfg, con
 const char                      *pLua_set_Multi(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
+
+
 static const command_rec        my_directives[] =
 {
     AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
@@ -410,6 +413,7 @@ static const luaL_reg           File_methods[] =
 };
 static const luaL_reg           Global_methods[] =
 {
+    { "exit", lua_exit},
     { "echo", lua_echo },
     { "print", lua_echo },
     { "flush", lua_flush },

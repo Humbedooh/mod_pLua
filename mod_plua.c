@@ -46,8 +46,8 @@ static void module_init(apr_pool_t *pool, server_rec *s) {
     /*~~~~~~~~~~~~~~~~~*/
 
     /*
-     * Get the difference between apt_time_now and the native clock function if any This is, at present,
-     * only needed by Windows.
+     * Get the difference between apt_time_now and the native clock function if any.
+     * This is, at present, only really needed by Windows.
      */
     aprClock = pLua_getClock(1);
     cpuClock = pLua_getClock(0);
@@ -117,6 +117,7 @@ static int plua_handler(request_rec *r) {
 #else
         SetCurrentDirectoryA(getPWD(l));
 #endif
+        
 
         /* Set default return code to OK (200-ish) and reset the parse counter */
         l->returnCode = OK;
@@ -270,29 +271,30 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
                 *where;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    err = err ? err : "(nil)";
-    if (thread->errorLevel == 0) return;
-    errX = ap_escape_html(thread->r->pool, err);
-    for (x = 1; x < 2048; x++) {
-        sprintf(found, ":%u: ", x);
-        if ((where = strstr(errX, found)) != 0) {
-            lineX = (char *) apr_pcalloc(thread->r->pool, strlen(errX) + 50);
-            if (lineX) {
-                sprintf(lineX, "On line <code style='font-weight: bold; color:#774411;'>%u:</code> %s", x, where + strlen(found));
-                errX = lineX;
+    if (err && !strstr(err, "MOD_PLUA_EXIT")) {
+        if (thread->errorLevel == 0) return;
+        errX = ap_escape_html(thread->r->pool, err);
+        for (x = 1; x < 2048; x++) {
+            sprintf(found, ":%u: ", x);
+            if ((where = strstr(errX, found)) != 0) {
+                lineX = (char *) apr_pcalloc(thread->r->pool, strlen(errX) + 50);
+                if (lineX) {
+                    sprintf(lineX, "On line <code style='font-weight: bold; color:#774411;'>%u:</code> %s", x, where + strlen(found));
+                    errX = lineX;
+                }
+                break;
             }
-            break;
         }
-    }
 
-#if (AP_SERVER_MINORVERSION_NUMBER <= 2)
-    if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
-#else
-    if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
-#endif
-    ap_set_content_type(thread->r, "text/html; charset=ascii");
-    filename = filename ? filename : "";
-    ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
+    #if (AP_SERVER_MINORVERSION_NUMBER <= 2)
+        if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
+    #else
+        if (LUA_LOGLEVEL >= 3) ap_log_rerror(filename, 0, 0, APLOG_ERR, APR_EGENERAL, thread->r, "in %s: %s", filename, err);
+    #endif
+        ap_set_content_type(thread->r, "text/html; charset=ascii");
+        filename = filename ? filename : "";
+        ap_rprintf(thread->r, pLua_error_template, type, filename ? filename : "??", errX ? errX : err);
+    }
 }
 
 /*
@@ -749,6 +751,16 @@ static int lua_rename(lua_State *L) {
     if (rc) lua_pushboolean(L, 0);
     else lua_pushboolean(L, 1);
     return (1);
+}
+
+/*
+ =======================================================================================================================
+    lua_exit(lua_State *L): Stops execution of the script.
+ =======================================================================================================================
+ */
+static int lua_exit(lua_State *L) {
+    luaL_error(L, "MOD_PLUA_EXIT");
+    return 0;
 }
 
 /*

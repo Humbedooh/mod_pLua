@@ -1,3 +1,7 @@
+0.37:
+- Added a header file for managing structs, defs and prototypes
+- Added the exit() Lua function for halting a script quietly
+
 0.36:
 - Re-enabled the global pool mutex that was shut off for debugging purposes
 - 404 errors now use apache's 404 handler instead
