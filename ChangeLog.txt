@@ -1,3 +1,6 @@
+0.38:
+- The thread struct for each Lua state is now referenced at initialization instead of at execution time
+
 0.37:
 - Added a header file for managing structs, defs and prototypes
 - Added the exit() Lua function for halting a script quietly

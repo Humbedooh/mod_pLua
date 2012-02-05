@@ -123,9 +123,7 @@ static int plua_handler(request_rec *r) {
         l->returnCode = OK;
         l->parsedPost = 0;
 
-        /* Push the lua_thread struct onto the Lua registry (this should be changed to an init operation?) */
-        lua_pushlightuserdata(L, l);
-        lua_rawseti(L, LUA_REGISTRYINDEX, 0);
+        
 
         /*
          * x = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -190,10 +188,8 @@ static int plua_handler(request_rec *r) {
             }
         }
 
-        /*
-         * Cleanup ;
-         * luaL_unref(L, LUA_REGISTRYINDEX, 2);
-         */
+        // Cleanup
+        //luaL_unref(L, LUA_REGISTRYINDEX, 0);
         lua_release_state(l);
         return (rc);
     }
@@ -270,7 +266,6 @@ static void pLua_print_error(lua_thread *thread, const char *type, const char *f
                 *lineX,
                 *where;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
     if (err && !strstr(err, "MOD_PLUA_EXIT")) {
         if (thread->errorLevel == 0) return;
         errX = ap_escape_html(thread->r->pool, err);
@@ -1850,7 +1845,7 @@ static void register_lua_functions(lua_State *L) {
     in the grand scheme
  =======================================================================================================================
  */
-void lua_init_state(lua_thread *thread, int x) {
+void pLua_create_state(lua_thread *thread, int x) {
 
     /*~~~~~~~~~~~*/
     lua_State   *L;
@@ -1865,6 +1860,11 @@ void lua_init_state(lua_thread *thread, int x) {
     luaL_openlibs(L);
     luaopen_debug(L);
     register_lua_functions(L);
+    
+    /* Push the lua_thread struct onto the Lua registry */
+    lua_pushlightuserdata(L, thread);
+    lua_rawseti(L, LUA_REGISTRYINDEX, 0);
+    
     for (y = 0; y < LUA_FILES; y++) {
         memset(thread->files[y].filename, 0, 256);
         thread->files[y].modified = 0;
@@ -1904,7 +1904,7 @@ void pLua_init_states(lua_domain *domain) {
     for (y = 0; y < LUA_STATES; y++) {
         if (!domain->states[y].state) {
             domain->states[y].files = apr_pcalloc(domain->pool, (LUA_FILES + 1) * sizeof(pLua_files));
-            lua_init_state(&domain->states[y], y);
+            pLua_create_state(&domain->states[y], y);
             domain->states[y].bigPool = domain->pool;
             domain->states[y].domain = (void *) domain;
         }
@@ -2048,7 +2048,7 @@ void lua_release_state(lua_thread *thread) {
     /* Check if state needs restarting */
     if (thread->sessions > LUA_RUNS) {
         lua_close(thread->state);
-        lua_init_state(thread, 1);
+        pLua_create_state(thread, 1);
     }
 
     pthread_mutex_unlock(&((lua_domain *) (thread->domain))->mutex);
