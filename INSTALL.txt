@@ -2,10 +2,10 @@
 Run "./configure" to set up the compiler environment.
 Run "make" to compile the file.
 
-If this should fail horribly, use the rudmentary compile.sh script to compile mod_pLua.
+If this should fail horribly, use the rudimentary compile.sh script to compile mod_pLua.
 
 == Installing ==
-Run "make install" to copy the file to /usr/lib/apache2/modules.
+Run "make install" or copy the file to your Apache modules folder
 
 Add the following information to your apache configuration:
 
@@ -17,6 +17,5 @@ LoadModule plua_module /usr/lib/apache2/modules/mod_plua.so
 </FilesMatch>
 #-------------------------#
 
-
-
 Enjoy!
+For detailed information on setting up mod_pLua, see the wiki at https://sourceforge.net/p/modplua/wiki/
