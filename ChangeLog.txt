@@ -1,6 +1,7 @@
 0.38:
 - The thread struct for each Lua state is now referenced at initialization instead of at execution time
-- The sleep() function will no longer allow scripts to sleep for longer than pLuaTimeout specifies (if set).
+- The sleep() function will no longer allow scripts to sleep for longer than pLuaTimeout specifies (if set)
+- The rudimentary compiler (compile.sh) should now be able to link against any Lua library available
 
 0.37:
 - Added a header file for managing structs, defs and prototypes
