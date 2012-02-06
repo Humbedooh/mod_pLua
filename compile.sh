@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 echo "Compiling..."
 gcc    -c -g -fPIC  -MMD -MP -MF mod_plua.o.d -o mod_plua.o mod_plua.c  -I/usr/include/apr-1.0 
 echo "Select a library to link against:"
