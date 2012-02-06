@@ -123,12 +123,8 @@ static int plua_handler(request_rec *r) {
         l->returnCode = OK;
         l->parsedPost = 0;
 
-        
 
-        /*
-         * x = luaL_ref(L, LUA_REGISTRYINDEX);
-         * Check if we want to compile this file as a plain lua file or not
-         */
+        // Check if we want to compile this file as a plain lua file or not
         xEnd = r->filename;
         xStart = strchr(r->filename, '.');
         while (xStart != 0) {
@@ -163,7 +159,7 @@ static int plua_handler(request_rec *r) {
             l->typeSet = 0;
             rc = 0;
 
-            /* Set timeout and run the compiled code. */
+            /* Set timeout if applicable and run the compiled code. */
             if (LUA_TIMEOUT > 0) {
                 l->runTime = time(0);
                 lua_sethook(L, pLua_debug_hook, LUA_MASKLINE | LUA_MASKCOUNT, 1);
@@ -183,13 +179,13 @@ static int plua_handler(request_rec *r) {
                 if (PLUA_DEBUG) ap_rprintf(r, "<b>Compiled and ran fine from index %u</b>", rc);
             }
 
+            // Remove the debug hook if set
             if (LUA_TIMEOUT > 0) {
                 lua_sethook(L, pLua_debug_hook, 0, 0);
             }
         }
 
         // Cleanup
-        //luaL_unref(L, LUA_REGISTRYINDEX, 0);
         lua_release_state(l);
         return (rc);
     }
@@ -1175,7 +1171,8 @@ static int lua_sleep(lua_State *L) {
 
     luaL_checktype(L, 1, LUA_TNUMBER);
     n = luaL_optint(L, 1, 1);
-    sleep(n);
+    
+    sleep( ((LUA_TIMEOUT > 0) &&(LUA_TIMEOUT < n)) ? LUA_TIMEOUT : n);
     return (0);
 }
 
@@ -1874,12 +1871,13 @@ void pLua_create_state(lua_thread *thread, int x) {
 
 /*$2
  -----------------------------------------------------------------------------------------------------------------------
-    Lua state generator
+    Lua state pool generator
  -----------------------------------------------------------------------------------------------------------------------
  */
 
 /*
  =======================================================================================================================
+ * pLua_init_states(lua_domain *domain): Creates and initialises a pool of states to be used with the given vhost.
  =======================================================================================================================
  */
 void pLua_init_states(lua_domain *domain) {
@@ -2027,11 +2025,6 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
     } else {
         sleep(1);
         return (lua_acquire_state(r, hostname));
-
-        /*
-         * ap_rputs("Couldn't find an available state!\r\n", r);
-         */
-        return (0);
     }
 }
 
