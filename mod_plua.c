@@ -171,7 +171,6 @@ static int plua_handler(request_rec *r) {
             } else {
                 if (l->typeSet == 0) ap_set_content_type(r, "text/html");
                 rc = l->returnCode;
-                if (PLUA_DEBUG) ap_rprintf(r, "<b>Compiled and ran fine from index %u</b>", rc);
             }
 
             // Remove the debug hook if set
@@ -304,7 +303,7 @@ static int module_lua_panic(lua_State *L) {
         const char  *el = lua_tostring(L, 1);
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-        printf("Lua PANIC: %s\n", el);
+        fprintf(stderr, "Lua PANIC: %s\n", el);
     }
 
     lua_settop(L, 0);

@@ -3,6 +3,7 @@
 - Garbage collection is now done less frequently, to boost performance
 - Various small performance tweaks
 - getPWD() now returns "." on failure instead of just 0
+- In the event of a Lua panic, errors will be copied to stderr as well
 
 0.38:
 - The thread struct for each Lua state is now referenced at initialization instead of at execution time
