@@ -303,7 +303,7 @@ static int module_lua_panic(lua_State *L) {
         const char  *el = lua_tostring(L, 1);
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-        fprintf(stderr, "Lua PANIC: %s\n", el);
+        fprintf(stderr, "Lua PANIC: %s\n", el ? el : "(nil)");
     }
 
     lua_settop(L, 0);
