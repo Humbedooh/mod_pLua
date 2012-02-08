@@ -1,3 +1,9 @@
+0.39:
+- Releasing a Lua state no longer requires a mutex lock
+- Garbage collection is now done less frequently, to boost performance
+- Various small performance tweaks
+- getPWD() now returns "." on failure instead of just 0
+
 0.38:
 - The thread struct for each Lua state is now referenced at initialization instead of at execution time
 - The sleep() function will no longer allow scripts to sleep for longer than pLuaTimeout specifies (if set)

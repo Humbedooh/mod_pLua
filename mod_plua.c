@@ -99,13 +99,7 @@ static int plua_handler(request_rec *r) {
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         /* Check if state acuisition worked */
-        if (!l) {
-            ap_set_content_type(r, "text/html;charset=ascii");
-            ap_rputs("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n", r);
-            ap_rputs("<html><head><title>mod_pLua: Grand supreme error!</title></head>", r);
-            ap_rprintf(r, "<body><h1>Memory allocation failed for hostname: %s</h1></body></html>", r->server->server_hostname);
-            return (HTTP_INTERNAL_SERVER_ERROR);
-        }
+        if (!l) return (HTTP_INTERNAL_SERVER_ERROR);
 
         /* Set up the lua_thread struct and change to the current directory. */
         L = l->state;
@@ -139,6 +133,7 @@ static int plua_handler(request_rec *r) {
                     break;
                 }
             }
+            else break;
         }
 
         /* Call the compiler function and let it either compile or read from cache. */
@@ -535,11 +530,8 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
 
     /* For each file on record, check if the names match */
     for (x = 0; x < LUA_FILES; x++) {
-        if (PLUA_DEBUG) {
-            if (strlen(thread->files[x].filename))
-                ap_rprintf(thread->r, "Checking: %s <=> %s ?<br/>", thread->files[x].filename, filename);
-        }
-
+        
+        if ((thread->files[x].filename[0] == 0)) break; // No filename means end of the used portion of the list.
         /* Do we have a match? */
         if (!strcmp(thread->files[x].filename, filename)) {
 
@@ -665,7 +657,7 @@ char *getPWD(lua_thread *thread) {
 
         if (z) pwd[z] = 0;
         return (pwd);
-    } else return (0);
+    } else return (".");
 }
 
 
@@ -1493,7 +1485,7 @@ static int lua_compileTime(lua_State *L) {
     /*~~~~~~~~~~~~~~~~*/
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~*/
-
+    
     thread = pLua_get_thread(L);
     lua_settop(L, 0);
     if (thread) {
@@ -1885,7 +1877,6 @@ void pLua_init_states(lua_domain *domain) {
     /*~~*/
     int y;
     /*~~*/
-
     domain->states = (lua_thread *) apr_pcalloc(domain->pool, (LUA_STATES + 1) * sizeof(lua_thread));
     y = (LUA_STATES + 1) * sizeof(lua_thread);
     if (LUA_LOGLEVEL >= 2)
@@ -2034,17 +2025,16 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
  =======================================================================================================================
  */
 void lua_release_state(lua_thread *thread) {
-    lua_gc(thread->state, LUA_GCSTEP, 1);
-    pthread_mutex_lock(&((lua_domain *) (thread->domain))->mutex);
-    thread->working = 0;
+    if (thread->sessions % 5) lua_gc(thread->state, LUA_GCSTEP, 1);
 
     /* Check if state needs restarting */
     if (thread->sessions > LUA_RUNS) {
         lua_close(thread->state);
         pLua_create_state(thread, 1);
     }
-
-    pthread_mutex_unlock(&((lua_domain *) (thread->domain))->mutex);
+    
+    // Signal that the state is ready for use again
+    thread->working = 0;
 }
 
 
