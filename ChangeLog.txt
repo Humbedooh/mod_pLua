@@ -4,6 +4,7 @@
 - Various small performance tweaks
 - getPWD() now returns "." on failure instead of just 0
 - In the event of a Lua panic, errors will be copied to stderr as well
+- The script cache handler will now consider file sizes as well as time of modification to determine if an update is required
 
 0.38:
 - The thread struct for each Lua state is now referenced at initialization instead of at execution time

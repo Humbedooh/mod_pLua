@@ -502,7 +502,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
         };
     }
 
-    rc = luaL_loadstring(thread->state, output ? output : "echo('no input speficied');");
+    rc = luaL_loadstring(thread->state, output ? output : "echo('<h4>Empty file!</h4>This script file is either empty or was being written to at the time of execution.');");
     if (output) free(output);
     return (rc);
 }
@@ -535,15 +535,13 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
         if (!strcmp(thread->files[x].filename, filename)) {
 
             /* Is the cached file out of date? */
-            if (statbuf->mtime != thread->files[x].modified) {
-                if (PLUA_DEBUG) ap_rprintf(thread->r, "Deleted out-of-date compiled version at index %u", x);
+            if (statbuf->mtime != thread->files[x].modified || statbuf->size != thread->files[x].size) {
                 memset(thread->files[x].filename, 0, 256);
                 luaL_unref(thread->state, LUA_REGISTRYINDEX, thread->files[x].refindex);
                 break;
 
                 /* Did we find a useable copy? */
             } else {
-                if (PLUA_DEBUG) ap_rprintf(thread->r, "Found usable compiled version at index %u", x);
                 found = thread->files[x].refindex;
                 return (found);
             }
@@ -597,6 +595,7 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
                     if (!strlen(thread->files[y].filename)) {
                         strcpy(thread->files[y].filename, filename);
                         thread->files[y].modified = statbuf->mtime;
+                        thread->files[y].size = statbuf->size;
                         thread->files[y].refindex = x;
                         foundSlot = 1;
                         thread->youngest = y;
@@ -1856,6 +1855,7 @@ void pLua_create_state(lua_thread *thread, int x) {
     for (y = 0; y < LUA_FILES; y++) {
         memset(thread->files[y].filename, 0, 256);
         thread->files[y].modified = 0;
+        thread->files[y].size = 0;
         thread->files[y].refindex = 0;
     }
 }

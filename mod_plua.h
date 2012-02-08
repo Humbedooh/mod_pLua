@@ -95,9 +95,10 @@ static int              pLua_domainsAllocated = 1;
 static uint32_t         then = 0;
 typedef struct
 {
-    char    filename[257];
-    time_t  modified;
-    int     refindex;
+    char      filename[257];
+    time_t    modified;
+    apr_off_t size;
+    int       refindex;
 } pLua_files;
 typedef struct
 {
