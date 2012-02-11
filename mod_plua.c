@@ -569,7 +569,19 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
             if (!rawCompile) {
                 rc = lua_parse_file(thread, iBuffer);
             } else {
-                rc = luaL_loadstring(thread->state, iBuffer ? iBuffer : "echo('no input speficied');");
+                if (iBuffer) {
+                    const char* shebang = strstr(iBuffer, "#!");
+                    if (shebang && shebang == iBuffer) {
+                        shebang = strchr(iBuffer, '\n');
+                        rc = luaL_loadstring(thread->state, shebang);
+                    }
+                    else {
+                        rc = luaL_loadstring(thread->state, iBuffer);
+                    }
+                }
+                else {
+                    rc = luaL_loadstring(thread->state, "echo('No input specified or file was written to at time of execution')");
+                }
             }
 
             free(iBuffer);
