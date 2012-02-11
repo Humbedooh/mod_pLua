@@ -16,7 +16,7 @@
 #   define _GNU_SOURCE
 #   define _LARGEFILE64_SOURCE
 #   define LUA_COMPAT_MODULE   1
-#   define PLUA_VERSION        39
+#   define PLUA_VERSION        40
 #   define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #   define MULTIPART_ENCTYPE   "multipart/form-data"
 #   define MAX_VARS            500  /* Maximum number of HTTP GET/POST variables */
@@ -83,7 +83,7 @@ struct timespec
  */
 
 static int              LUA_STATES = 50;        /* Keep 50 states open */
-static int              LUA_RUNS = 500;         /* Restart a state after 500 sessions */
+static int              LUA_RUNS = 1000;        /* Restart a state after 1000 sessions */
 static int              LUA_FILES = 50;         /* Number of files to keep cached */
 static int              LUA_TIMEOUT = 0;        /* Maximum number of seconds a lua script may take (set to 0 to disable) */
 static int              LUA_PERROR = 1;
@@ -327,6 +327,7 @@ char                            *pLua_encode_base64(const char *src, size_t len,
 static int                      lua_sha256(lua_State *L);
 static int                      lua_b64dec(lua_State *L);
 static int                      lua_b64enc(lua_State *L);
+static int                      lua_explode(lua_State *L);
 static int                      lua_fileexists(lua_State *L);
 static int                      lua_unlink(lua_State *L);
 static int                      lua_rename(lua_State *L);
@@ -432,6 +433,11 @@ static const luaL_reg           Global_methods[] =
     { "showErrors", lua_setErrorLevel },
     { 0, 0 }
 };
-static const luaL_reg           String_methods[] = { { "SHA256", lua_sha256 }, { "decode64", lua_b64dec }, { "encode64",
-            lua_b64enc }, { 0, 0 } };
+static const luaL_reg           String_methods[] = { 
+    { "SHA256", lua_sha256 }, 
+    { "decode64", lua_b64dec }, 
+    { "encode64", lua_b64enc }, 
+    { "explode", lua_explode }, 
+    { 0, 0 } 
+};
 #endif /* mod_plua.h */

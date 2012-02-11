@@ -1,3 +1,8 @@
+0.40:
+- Changed some default directive values
+- header() will now accept numbers as its second argument
+- Any shebang (#!) encountered on line 1 of raw lua files will now be ignored
+
 0.39:
 - Releasing a Lua state no longer requires a mutex lock
 - Garbage collection is now done less frequently, to boost performance

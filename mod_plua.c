@@ -1113,9 +1113,9 @@ static int lua_header(lua_State *L) {
     thread = pLua_get_thread(L);
     if (thread) {
         luaL_checktype(L, 1, LUA_TSTRING);
-        luaL_checktype(L, 2, LUA_TSTRING);
         key = lua_tostring(L, 1);
         value = lua_tostring(L, 2);
+        value = value ? value : "(nil)";
         lua_settop(L, 0);
         apr_table_set(thread->r->headers_out, key, value);
         if (!strcmp(key, "Location")) thread->returnCode = HTTP_MOVED_TEMPORARILY;
@@ -2586,6 +2586,25 @@ static int lua_b64enc(lua_State *L) {
     return (0);
 }
 
+
+
+/*
+ =======================================================================================================================
+ =======================================================================================================================
+ */
+static int lua_explode(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~*/
+    const char  *string;
+    const char  *delimiter;
+    /*~~~~~~~~~~~~~~~~*/
+
+    luaL_checktype(L, 1, LUA_TSTRING);
+    string = lua_tostring(L, 1);
+    delimiter = luaL_optstring(L,2, " ");
+    lua_newtable(L);
+    return (1);
+}
 
 /* $1 Configuration directives */
 
