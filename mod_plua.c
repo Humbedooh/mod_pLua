@@ -325,7 +325,6 @@ static lua_thread *pLua_get_thread(lua_State *L) {
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 0);
     thread = (lua_thread *) lua_touserdata(L, -1);
-    thread = 0;
     if (thread) return (thread);
     // This should always work, but some modules are known to break it!
     // So in case it fails, we have a backup plan.
