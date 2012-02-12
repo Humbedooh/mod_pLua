@@ -16,7 +16,7 @@
 #   define _GNU_SOURCE
 #   define _LARGEFILE64_SOURCE
 #   define LUA_COMPAT_MODULE   1
-#   define PLUA_VERSION        40
+#   define PLUA_VERSION        41
 #   define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #   define MULTIPART_ENCTYPE   "multipart/form-data"
 #   define MAX_VARS            500  /* Maximum number of HTTP GET/POST variables */
@@ -127,12 +127,18 @@ typedef struct
 } lua_domain;
 typedef struct
 {
+    lua_thread      *state;
+    apr_os_thread_t thread;
+} lua_threadStates;
+typedef struct
+{
     const char  *key;
     int         size;
     int         sizes[MAX_MULTIPLES];
     const char  *values[MAX_MULTIPLES];
 } formdata;
 static lua_domain   *pLua_domains = 0;
+static lua_threadStates *pLua_threads = 0;
 typedef struct
 {
     apr_dbd_t               *handle;
@@ -327,7 +333,7 @@ char                            *pLua_encode_base64(const char *src, size_t len,
 static int                      lua_sha256(lua_State *L);
 static int                      lua_b64dec(lua_State *L);
 static int                      lua_b64enc(lua_State *L);
-static int                      lua_explode(lua_State *L);
+//static int                      lua_explode(lua_State *L);
 static int                      lua_fileexists(lua_State *L);
 static int                      lua_unlink(lua_State *L);
 static int                      lua_rename(lua_State *L);
@@ -432,7 +438,7 @@ static const luaL_reg           Global_methods[] =
     { "dbopen", lua_dbopen },
     { "showErrors", lua_setErrorLevel },
     { 0, 0 }
-};
+};  
 static const luaL_reg           String_methods[] = { 
     { "SHA256", lua_sha256 }, 
     { "decode64", lua_b64dec }, 

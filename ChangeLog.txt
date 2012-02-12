@@ -1,3 +1,6 @@
+0.41:
+- Added a backup state list for ensuring that external modules won't break the retrieval of handles
+
 0.40:
 - Changed some default directive values
 - header() will now accept numbers as its second argument

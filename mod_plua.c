@@ -57,6 +57,7 @@ static void module_init(apr_pool_t *pool, server_rec *s) {
     pthread_mutex_init(&pLua_bigLock, 0);
     pLua_domainsAllocated = 1;
     pLua_domains = calloc(2, sizeof(lua_domain));
+    pLua_threads = apr_pcalloc(pool, (LUA_STATES+1) * sizeof(lua_threadStates));
     pthread_mutex_init(&pLua_domains[0].mutex, 0);
     pLua_domains[0].pool = pool;
     sprintf(pLua_domains[0].domain, "localDomain");
@@ -319,12 +320,23 @@ static lua_thread *pLua_get_thread(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~~~~~*/
     lua_thread  *thread = 0;
+    int y;
     /*~~~~~~~~~~~~~~~~~~~~*/
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, 0);
     thread = (lua_thread *) lua_touserdata(L, -1);
+    thread = 0;
     if (thread) return (thread);
+    // This should always work, but some modules are known to break it!
+    // So in case it fails, we have a backup plan.
     else {
+        // Check the backup list!
+        apr_os_thread_t me = apr_os_thread_current();
+        for (y=0;y<LUA_STATES;y++) {
+            if (pLua_threads[y].thread == me) {
+                return pLua_threads[y].state;
+            }
+        }
         fprintf(stderr,
                 "mod_pLua: Could not obtain the mod_pLua handle from the Lua registry index. This may be caused by mod_pLua being used with an incompatible Lua library.\r\n");
     }
@@ -1919,7 +1931,7 @@ void pLua_init_states(lua_domain *domain) {
 lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
 
     /*~~~~~~~~~~~~~~~~~~~~*/
-    int         x;
+    int         x,y;
     int         found = 0;
     lua_thread  *L = 0;
     lua_domain  *domain = 0;
@@ -1994,10 +2006,18 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
     pthread_mutex_lock(&domain->mutex);
     for (x = 0; x < LUA_STATES; x++) {
         if (domain->states[x].working == 0 && domain->states[x].state) {
+			apr_os_thread_t me = apr_os_thread_current();
             domain->states[x].working = 1;
             domain->states[x].sessions++;
             L = &domain->states[x];
             found = 1;
+            for (y=0;y<LUA_STATES;y++) {
+                if (pLua_threads[y].thread == 0) {
+                    pLua_threads[y].thread = me;
+                    pLua_threads[y].state = L;
+                    break;
+                }
+            }
             break;
         }
     }
@@ -2005,6 +2025,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
     pthread_mutex_unlock(&domain->mutex);
     if (found)
     {
+        
         /*~~~~~~~~~~~~~~~~*/
 #ifdef _WIN32
         LARGE_INTEGER   moo;
@@ -2023,6 +2044,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
         L->t.tv_sec = (now / 1000000);
         L->t.tv_nsec = ((now % 1000000) * 1000);
 #endif
+        
         return (L);
     } else {
         sleep(1);
@@ -2036,12 +2058,23 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
  =======================================================================================================================
  */
 void lua_release_state(lua_thread *thread) {
+    int y;
+    apr_os_thread_t me = apr_os_thread_current();
     if (thread->sessions % 5) lua_gc(thread->state, LUA_GCSTEP, 1);
 
     /* Check if state needs restarting */
     if (thread->sessions > LUA_RUNS) {
         lua_close(thread->state);
         pLua_create_state(thread, 1);
+    }
+    
+    // Remove the thread from the backup state list
+    for (y=0;y<LUA_STATES;y++) {
+        if (pLua_threads[y].thread == me) {
+            pLua_threads[y].thread = 0;
+            pLua_threads[y].state = 0;
+            break;
+        }
     }
     
     // Signal that the state is ready for use again
@@ -2598,25 +2631,6 @@ static int lua_b64enc(lua_State *L) {
     return (0);
 }
 
-
-
-/*
- =======================================================================================================================
- =======================================================================================================================
- */
-static int lua_explode(lua_State *L) {
-
-    /*~~~~~~~~~~~~~~~~*/
-    const char  *string;
-    const char  *delimiter;
-    /*~~~~~~~~~~~~~~~~*/
-
-    luaL_checktype(L, 1, LUA_TSTRING);
-    string = lua_tostring(L, 1);
-    delimiter = luaL_optstring(L,2, " ");
-    lua_newtable(L);
-    return (1);
-}
 
 /* $1 Configuration directives */
 
