@@ -864,7 +864,6 @@ static int lua_dbdo(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
-    lua_thread      *thread;
     int             x = 0;
     const char      *statement;
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
@@ -2033,6 +2032,10 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
         L->t.tv_sec = (now / 1000000);
         L->t.tv_nsec = ((now % 1000000) * 1000);
 #endif
+        
+        /* Push the lua_thread struct onto the Lua registry */
+        lua_pushlightuserdata(L->state, L);
+        lua_rawseti(L->state, LUA_REGISTRYINDEX, 0);
         
         return (L);
     } else {
