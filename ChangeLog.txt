@@ -1,3 +1,6 @@
+0.42:
+- Removed thread checks where they were not needed in Lua C function calls
+
 0.41:
 - Added a backup state list for ensuring that external modules won't break the retrieval of handles
 

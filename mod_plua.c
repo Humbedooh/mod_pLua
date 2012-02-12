@@ -836,21 +836,16 @@ static int lua_dbhandle(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~~~~~*/
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
-    lua_thread      *thread = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-    thread = pLua_get_thread(L);
-    if (thread) {
-        luaL_checktype(L, 1, LUA_TTABLE);
-        lua_rawgeti(L, 1, 0);
-        luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
-        db = (dbStruct *) lua_topointer(L, -1);
-        if (db && db->alive) {
-            rc = apr_dbd_check_conn(db->driver, db->pool, db->handle);
-            if (rc == APR_SUCCESS) {
-                lua_pushboolean(L, 1);
-                return (1);
-            }
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_rawgeti(L, 1, 0);
+    luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
+    db = (dbStruct *) lua_topointer(L, -1);
+    if (db && db->alive) {
+        rc = apr_dbd_check_conn(db->driver, db->pool, db->handle);
+        if (rc == APR_SUCCESS) {
+            lua_pushboolean(L, 1);
+            return (1);
         }
     }
 
@@ -874,39 +869,34 @@ static int lua_dbdo(lua_State *L) {
     const char      *statement;
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    thread = pLua_get_thread(L);
-    if (thread) {
-        luaL_checktype(L, 1, LUA_TTABLE);
-        luaL_checktype(L, 2, LUA_TSTRING);
-        statement = lua_tostring(L, 2);
-        lua_rawgeti(L, 1, 0);
-        luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
-        db = (dbStruct *) lua_topointer(L, -1);
-        if (db && db->alive) {
-            rc = apr_dbd_query(db->driver, db->handle, &x, statement);
-        } else {
-            rc = 0;
-            x = -1;
-        }
-
-        if (rc == APR_SUCCESS) lua_pushnumber(L, x);
-        else {
-
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-            const char  *err = apr_dbd_error(db->driver, db->handle, rc);
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-            lua_pushnil(L);
-            if (err) {
-                lua_pushstring(L, err);
-                return (2);
-            }
-        }
-
-        return (1);
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_checktype(L, 2, LUA_TSTRING);
+    statement = lua_tostring(L, 2);
+    lua_rawgeti(L, 1, 0);
+    luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
+    db = (dbStruct *) lua_topointer(L, -1);
+    if (db && db->alive) {
+        rc = apr_dbd_query(db->driver, db->handle, &x, statement);
+    } else {
+        rc = 0;
+        x = -1;
     }
 
-    return (0);
+    if (rc == APR_SUCCESS) lua_pushnumber(L, x);
+    else {
+
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        const char  *err = apr_dbd_error(db->driver, db->handle, rc);
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+        lua_pushnil(L);
+        if (err) {
+            lua_pushstring(L, err);
+            return (2);
+        }
+    }
+
+    return (1);
 }
 
 /*
