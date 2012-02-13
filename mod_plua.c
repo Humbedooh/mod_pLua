@@ -2016,14 +2016,14 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
         
         /*~~~~~~~~~~~~~~~~*/
 #ifdef _WIN32
-        LARGE_INTEGER   moo;
-        LARGE_INTEGER   cow;
+        LARGE_INTEGER   cycles;
+        LARGE_INTEGER   frequency;
         /*~~~~~~~~~~~~~~~~*/
 
-        QueryPerformanceCounter(&moo);
-        QueryPerformanceFrequency(&cow);
-        L->t.tv_sec = (moo.QuadPart / cow.QuadPart) + pLua_clockOffset.seconds;
-        L->t.tv_nsec = (moo.QuadPart % cow.QuadPart) * (1000000000 / cow.QuadPart) + pLua_clockOffset.nanoseconds;
+        QueryPerformanceCounter(&cycles);
+        QueryPerformanceFrequency(&frequency);
+        L->t.tv_sec = (cycles.QuadPart / frequency.QuadPart) + pLua_clockOffset.seconds;
+        L->t.tv_nsec = (cycles.QuadPart % frequency.QuadPart) * (1000000000 / frequency.QuadPart) + pLua_clockOffset.nanoseconds;
 #else
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         apr_time_t  now = r->request_time;
