@@ -1307,7 +1307,7 @@ static int lua_setReturnCode(lua_State *L) {
     lua_setReturnCode(lua_State *L): setReturnCode(rc): Sets the return code of the HTTP output to _rc_.
  =======================================================================================================================
  */
-static int lua_displayError(lua_State *L) {
+static int lua_httpError(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~*/
     int         rc;

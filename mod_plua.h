@@ -352,7 +352,7 @@ static int                      lua_exit(lua_State *L);
 static int                      lua_setContentType(lua_State *L);
 static int                      lua_setErrorLevel(lua_State *L);
 static int                      lua_setReturnCode(lua_State *L);
-static int                      lua_displayError(lua_State *L);
+static int                      lua_httpError(lua_State *L);
 static int                      lua_getEnv(lua_State *L);
 static int                      lua_fileinfo(lua_State *L);
 static pLuaClock                pLua_getClock(char useAPR);
@@ -435,7 +435,7 @@ static const luaL_reg           Global_methods[] =
     { "clock", lua_clock },
     { "compileTime", lua_compileTime },
     { "setReturnCode", lua_setReturnCode },
-    { "displayError", lua_displayError },
+    { "httpError", lua_httpError },
     { "include", lua_includeFile },
     { "dbopen", lua_dbopen },
     { "showErrors", lua_setErrorLevel },
