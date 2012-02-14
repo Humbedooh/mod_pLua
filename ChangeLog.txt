@@ -3,7 +3,7 @@
 - Reinstated pushing the lua thread onto the registry when acquiring the state to avoid having to resort to the backup list
 - Added the Lua function httpError(N) for calling the internal Apache error handler with return code N
 - setReturnCode now only sets the return code, it does not call the Apache error handler
-- Tag test, 1 2 3 4
+- Started tagging the releases as per suggestions from clever folks.
 
 0.41:
 - Added a backup state list for ensuring that external modules won't break the retrieval of handles
