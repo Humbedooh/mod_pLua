@@ -1,6 +1,8 @@
 0.42:
 - Removed thread checks where they were not needed in Lua C function calls
 - Reinstated pushing the lua thread onto the registry when acquiring the state to avoid having to resort to the backup list
+- Added the Lua function displayError(N) for calling the internal Apache error handler with return code N
+- SetReturnCode now only sets the return code, it does not call the Apache error handler
 
 0.41:
 - Added a backup state list for ensuring that external modules won't break the retrieval of handles

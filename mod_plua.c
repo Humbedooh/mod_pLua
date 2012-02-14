@@ -117,7 +117,7 @@ static int plua_handler(request_rec *r) {
         /* Set default return code to OK (200-ish) and reset the parse counter */
         l->returnCode = OK;
         l->parsedPost = 0;
-
+        
 
         // Check if we want to compile this file as a plain lua file or not
         xEnd = r->filename;
@@ -166,7 +166,7 @@ static int plua_handler(request_rec *r) {
             /* DId we get a run-time error? */
             if (rc) {
                 pLua_print_error(l, "Run-time error", r->filename);
-                rc = OK;
+                rc = l->returnCode;
 
                 /* No error, everything went fine, set up the content type if needed and return OK. */
             } else {
@@ -1296,12 +1296,33 @@ static int lua_setReturnCode(lua_State *L) {
     if (thread) {
         rc = luaL_optint(L, 1, 0);
         lua_settop(L, 0);
-        thread->returnCode = rc;
+        thread->r->status = rc;
     }
 
     return (0);
 }
 
+/*
+ =======================================================================================================================
+    lua_setReturnCode(lua_State *L): setReturnCode(rc): Sets the return code of the HTTP output to _rc_.
+ =======================================================================================================================
+ */
+static int lua_displayError(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~*/
+    int         rc;
+    lua_thread  *thread;
+    /*~~~~~~~~~~~~~~~~*/
+
+    thread = pLua_get_thread(L);
+    if (thread) {
+        rc = luaL_optint(L, 1, 0);
+        lua_settop(L, 0);
+        thread->returnCode = rc;
+    }
+
+    return (0);
+}
 /*
  =======================================================================================================================
     lua_getEnv(lua_State *L): getEnv(): Returns a table with the current HTTP request environment.
@@ -1954,11 +1975,11 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
             {
 #if (AP_SERVER_MINORVERSION_NUMBER <= 2)
                 ap_log_perror("mod_plua.c", 2495, APLOG_NOTICE, APR_ENOPOOL, LUA_BIGPOOL,
-                              "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>",
+                              "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes <Not an Error>",
                               hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated + 3));
 #else
                 ap_log_perror("mod_plua.c", 2495, 1, APLOG_NOTICE, APR_ENOPOOL, LUA_BIGPOOL,
-                              "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes<Not an Error>",
+                              "mod_pLua: Domain pool too small, reallocating space for new domain pool '%s' of size %u bytes <Not an Error>",
                               hostname, (uint32_t) sizeof(lua_domain) * (pLua_domainsAllocated + 3));
 #endif
             }
@@ -1999,6 +2020,8 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
             domain->states[x].sessions++;
             L = &domain->states[x];
             found = 1;
+            
+            // Add the ID of the current thread to the state backup list
             for (y=0;y<LUA_STATES;y++) {
                 if (pLua_threads[y].thread == 0) {
                     pLua_threads[y].thread = me;
