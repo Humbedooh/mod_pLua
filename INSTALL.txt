@@ -1,21 +1,27 @@
 === Compiling ==
-Run "./configure" to set up the compiler environment.
-Run "make" to compile the file.
+Use `make` to compile the module. 
+If You are on ubuntu or debian, make sure to change apxs to apxs2 in the Makefile.
 
 If this should fail horribly, use the rudimentary compile.sh script to compile mod_pLua.
 
 == Installing ==
-Run "make install" or copy the file to your Apache modules folder
+Run "make install" or copy the module file to your Apache modules folder
 
 Add the following information to your apache configuration:
 
 #-------------------------#
-LoadModule plua_module /usr/lib/apache2/modules/mod_plua.so
-
 <FilesMatch "\.plua$">
 	SetHandler plua
 </FilesMatch>
 #-------------------------#
 
+If you could not install via `make install`, you should also add the following line:
+
+#----------------------------------------------------------#
+LoadModule plua_module /usr/lib/apache2/modules/mod_plua.so
+#----------------------------------------------------------#
+
+
 Enjoy!
+
 For detailed information on setting up mod_pLua, see the wiki at https://sourceforge.net/p/modplua/wiki/
