@@ -12,7 +12,7 @@
 #   define _GNU_SOURCE
 #   define _LARGEFILE64_SOURCE
 #   define LUA_COMPAT_MODULE   1
-#   define PLUA_VERSION        43
+#   define PLUA_VERSION        44
 #   define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #   define MULTIPART_ENCTYPE   "multipart/form-data"
 #   define MAX_VARS            500  /* Maximum number of HTTP GET/POST variables */
@@ -33,22 +33,15 @@
 #   include <stdlib.h>
 #   include <sys/stat.h>
 #   include <time.h>
-#   ifdef _WIN32
-#      include <httpd.h>
-#      include <http_protocol.h>
-#      include <http_config.h>
-#      include <http_log.h>
-#      include <apr_dbd.h>
-#   else
-#      include <apr_dbd.h>
-#      include <httpd.h>
-#      include <http_protocol.h>
-#      include <http_config.h>
-#      include <http_log.h>
-#      include <mod_log_config.h>
-#      include <unistd.h>
-#      include <pthread.h>
-#   endif
+#   include <apr_dbd.h>
+#   include <apr_hash.h>
+#   include <httpd.h>
+#   include <http_protocol.h>
+#   include <http_config.h>
+#   include <http_log.h>
+#   include <mod_log_config.h>
+#   include <unistd.h>
+#   include <pthread.h>
 #   include <lua.h>
 #   include <lualib.h>
 #   include <lauxlib.h>
@@ -141,7 +134,13 @@ typedef struct
     const apr_dbd_driver_t  *driver;
     int                     alive;
     apr_pool_t              *pool;
+    char                    type;
 } dbStruct;
+typedef struct {
+    apr_dbd_t *handle;
+    apr_dbd_driver_t *driver;
+    apr_hash_t *prepared;
+} ap_dbd_t;
 typedef union
 {
     struct
@@ -379,6 +378,9 @@ const char                      *pLua_set_Logging(cmd_parms *cmd, void *cfg, con
 const char                      *pLua_set_Multi(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
+#include <apache2/ap_compat.h>
+AP_DECLARE(ap_dbd_t*) ap_dbd_acquire(request_rec*);
+
 static const command_rec        my_directives[] =
 {
     AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),

@@ -1,3 +1,6 @@
+0.44:
+- Added support for mod_dbd
+
 0.43:
 - Switched to the APXS system for compiling and installing mod_pLua - many thanks to Igor Galic for his help on this.
 - Cleaned up some code

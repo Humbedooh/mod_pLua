@@ -791,7 +791,8 @@ static int lua_dbclose(lua_State *L) {
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
     db = (dbStruct *) lua_topointer(L, -1);
     if (db && db->alive) {
-        rc = apr_dbd_close(db->driver, db->handle);
+        if (db->type == 0) { rc = apr_dbd_close(db->driver, db->handle); }
+        else { rc = 0; }
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
@@ -1043,16 +1044,18 @@ static int lua_dbopen(lua_State *L) {
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
     apr_pool_t      *pool = 0;
+    ap_dbd_t*       dbdhandle = 0;
     /*~~~~~~~~~~~~~~~~~~~~~~~*/
 
     thread = pLua_get_thread(L);
     if (thread) {
+        
         apr_pool_create(&pool, thread->bigPool);
-        db = (dbStruct *) apr_pcalloc(pool, sizeof(dbStruct));  /* apr_pcalloc(thread->bigPool,
-                                                                 * sizeof(dbStruct));
-                                                                 * */
+        db = (dbStruct *) apr_pcalloc(pool, sizeof(dbStruct));
+        
         db->alive = 0;
         db->pool = pool;
+        db->type = 0; // 0 for regular, 1 for mod_dbd
         apr_dbd_init(pool);
         luaL_checktype(L, 1, LUA_TSTRING);
         luaL_checktype(L, 2, LUA_TSTRING);
@@ -1063,14 +1066,15 @@ static int lua_dbopen(lua_State *L) {
         /*
          * apr_dbd_init(thread->r->pool);
          */
-        rc = apr_dbd_get_driver(db->pool, type, &db->driver);
-        if (rc == APR_SUCCESS) {
-            if (strlen(arguments)) {
-                rc = apr_dbd_open_ex(db->driver, db->pool, arguments, &db->handle, &error);
-                if (rc == APR_SUCCESS) {
+        if (!strcmp(type, "mod_dbd")) {
+            db->type = 1;
+            dbdhandle = ap_dbd_acquire(thread->r);
+            if (dbdhandle) {
                     db->alive = 1;
+                    db->driver = dbdhandle->driver;
+                    db->handle = dbdhandle->handle;
                     lua_newtable(L);
-
+                    
                     /* Create metatable for __gc function */
                     luaL_newmetatable(L, "pLua.dbopen");
                     lua_pushliteral(L, "__gc");
@@ -1087,34 +1091,62 @@ static int lua_dbopen(lua_State *L) {
                     return (1);
                 } else {
                     lua_pushnil(L);
-                    if (error) {
-                        lua_pushstring(L, error);
-                        apr_pool_destroy(pool);
-                        return (2);
-                    }
-
-                    apr_pool_destroy(pool);
-                    return (1);
                 }
             }
+            else {
+                rc = apr_dbd_get_driver(db->pool, type, &db->driver);
+                if (rc == APR_SUCCESS) {
+                    if (strlen(arguments)) {
+                        rc = apr_dbd_open_ex(db->driver, db->pool, arguments, &db->handle, &error);
+                        if (rc == APR_SUCCESS) {
+                            db->alive = 1;
+                            lua_newtable(L);
 
-            apr_pool_clear(pool);
-            apr_pool_destroy(pool);
-            lua_pushnil(L);
-            lua_pushliteral(L, "No database connection string was specified.");
-            return (2);
-        } else {
-            apr_pool_clear(pool);
-            apr_pool_destroy(pool);
-            lua_pushnil(thread->state);
-            lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
-            lua_pushinteger(thread->state, rc);
-            return (3);
-        }
+                            /* Create metatable for __gc function */
+                            luaL_newmetatable(L, "pLua.dbopen");
+                            lua_pushliteral(L, "__gc");
+                            lua_pushcfunction(L, lua_dbgc);
+                            lua_rawset(L, -3);
+                            lua_setmetatable(L, -2);
+
+                            /* Register db functions */
+                            luaL_register(L, NULL, db_methods);
+
+                            /* lua_newuserdata() */
+                            lua_pushlightuserdata(L, db);
+                            lua_rawseti(L, -2, 0);
+                            return (1);
+                        } else {
+                            lua_pushnil(L);
+                            if (error) {
+                                lua_pushstring(L, error);
+                                apr_pool_destroy(pool);
+                                return (2);
+                            }
+
+                            apr_pool_destroy(pool);
+                            return (1);
+                        }
+                    }
+
+                    apr_pool_clear(pool);
+                    apr_pool_destroy(pool);
+                    lua_pushnil(L);
+                    lua_pushliteral(L, "No database connection string was specified.");
+                    return (2);
+                } else {
+                    apr_pool_clear(pool);
+                    apr_pool_destroy(pool);
+                    lua_pushnil(thread->state);
+                    lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
+                    lua_pushinteger(thread->state, rc);
+                    return (3);
+                }
+            }
+        lua_pushnil(thread->state);
+        return (1);
     }
-
-    lua_pushnil(thread->state);
-    return (1);
+    return 0;
 }
 
 /*
