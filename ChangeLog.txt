@@ -1,3 +1,7 @@
+0.43:
+- Switched to the APXS system for compiling and installing mod_pLua - many thanks to Igor Galic for his help on this.
+- Cleaned up some code
+
 0.42:
 - Removed thread checks where they were not needed in Lua C function calls
 - Reinstated pushing the lua thread onto the registry when acquiring the state to avoid having to resort to the backup list
