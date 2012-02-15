@@ -1,8 +1,4 @@
-/*$I0
- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
- */
-
+/*$I0 */
 #ifndef _MOD_PLUA_H_    /* mod_plua.h */
 
 /*$1
@@ -95,10 +91,10 @@ static int              pLua_domainsAllocated = 1;
 static uint32_t         then = 0;
 typedef struct
 {
-    char      filename[257];
-    time_t    modified;
-    apr_off_t size;
-    int       refindex;
+    char        filename[257];
+    time_t      modified;
+    apr_off_t   size;
+    int         refindex;
 } pLua_files;
 typedef struct
 {
@@ -137,7 +133,7 @@ typedef struct
     int         sizes[MAX_MULTIPLES];
     const char  *values[MAX_MULTIPLES];
 } formdata;
-static lua_domain   *pLua_domains = 0;
+static lua_domain       *pLua_domains = 0;
 static lua_threadStates *pLua_threads = 0;
 typedef struct
 {
@@ -333,7 +329,10 @@ char                            *pLua_encode_base64(const char *src, size_t len,
 static int                      lua_sha256(lua_State *L);
 static int                      lua_b64dec(lua_State *L);
 static int                      lua_b64enc(lua_State *L);
-//static int                      lua_explode(lua_State *L);
+
+/*
+ * static int lua_explode(lua_State *L);
+ */
 static int                      lua_fileexists(lua_State *L);
 static int                      lua_unlink(lua_State *L);
 static int                      lua_rename(lua_State *L);
@@ -380,8 +379,6 @@ const char                      *pLua_set_Logging(cmd_parms *cmd, void *cfg, con
 const char                      *pLua_set_Multi(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
-
-
 static const command_rec        my_directives[] =
 {
     AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
@@ -422,7 +419,7 @@ static const luaL_reg           File_methods[] =
 };
 static const luaL_reg           Global_methods[] =
 {
-    { "exit", lua_exit},
+    { "exit", lua_exit },
     { "echo", lua_echo },
     { "print", lua_echo },
     { "flush", lua_flush },
@@ -440,12 +437,14 @@ static const luaL_reg           Global_methods[] =
     { "dbopen", lua_dbopen },
     { "showErrors", lua_setErrorLevel },
     { 0, 0 }
-};  
-static const luaL_reg           String_methods[] = { 
-    { "SHA256", lua_sha256 }, 
-    { "decode64", lua_b64dec }, 
-    { "encode64", lua_b64enc }, 
-  //  { "explode", lua_explode }, 
-    { 0, 0 } 
+};
+static const luaL_reg           String_methods[] =
+{
+    { "SHA256", lua_sha256 },
+    { "decode64", lua_b64dec },
+    { "encode64", lua_b64enc },
+
+    /* { "explode", lua_explode }, */
+    { 0, 0 }
 };
 #endif /* mod_plua.h */
