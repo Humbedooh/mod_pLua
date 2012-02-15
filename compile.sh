@@ -11,7 +11,7 @@ if [ "$version" = "Lua 5.1" ]; then
 	gcc     -shared -o mod_plua.so -fPIC mod_plua.o -llua5.1 -lapr-1
 fi
 if [ "$version" = "Lua 5.2" ]; then
-	gcc     -shared -o mod_plua.so -fPIC mod_plua.o -llua5.2 -lapr-1
+	gcc     -shared -o mod_plua.so -fPIC mod_plua.o -llua -lapr-1
 fi
 break
 done
