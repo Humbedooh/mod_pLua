@@ -117,6 +117,7 @@ static int plua_handler(request_rec *r) {
 #else
         SetCurrentDirectoryA(getPWD(l));
 #endif
+        ap_sen
 
         /* Set default return code to OK (200-ish) and reset the parse counter */
         l->returnCode = OK;
@@ -1138,7 +1139,7 @@ static int lua_header(lua_State *L) {
         value = value ? value : "(nil)";
         lua_settop(L, 0);
         apr_table_set(thread->r->headers_out, key, value);
-        if (!strcmp(key, "Location")) thread->returnCode = HTTP_MOVED_TEMPORARILY;
+        //if (!strcmp(key, "Location")) thread->returnCode = HTTP_MOVED_TEMPORARILY;
     } else {
 
         /*
