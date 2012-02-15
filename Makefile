@@ -16,26 +16,22 @@
 
 APXS?=apxs
 
+none:
+	@echo "Please do 'make VERSION' where VERSION is one of these:"
+	@echo "   5.1 5.2 luajit"
+
 luajit: mod_plua.c
-    $(APXS) -I /usr/include/luajit-2.0 -lluajit-5.1  v -c $? -o mod_plua.so
+	$(APXS) -I/usr/include/luajit-2.0 -lluajit-5.1 -c $?
 
 5.1: mod_plua.c
-    $(APXS) -llua5.1  v -c $? -o mod_plua.so
+	$(APXS) -llua5.1 -c $?
 
 5.2: mod_plua.c
-    $(APXS)  -llua  v -c $? -o mod_plua.so
+	$(APXS) -llua -c $?
 	
-all:    mod_plua.c
-    $(APXS) -v -c $? -o mod_plua.so
-
 install:
-	$(APXS) -i -o mod_plua.so
+	$(APXS) -a -i -n mod_plua .libs/mod_plua.so
 
 clean:
 	rm -f *.lo *.so
 	
-none:
-    @echo "Please do 'make VERSION' where VERSION is one of these:"
-    @echo "   5.1 5.2 luajit"
-
-#apxs -I /usr/include/luajit-2.0 -lluajit-5.1 -c mod_plua.c
