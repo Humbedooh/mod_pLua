@@ -1,6 +1,7 @@
 0.43:
 - Switched to the APXS system for compiling and installing mod_pLua - many thanks to Igor Galic for his help on this.
 - Cleaned up some code
+- setting header("Location", ...) will no longer trigger an automatic 302 response by httpd
 
 0.42:
 - Removed thread checks where they were not needed in Lua C function calls

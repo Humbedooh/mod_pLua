@@ -117,7 +117,6 @@ static int plua_handler(request_rec *r) {
 #else
         SetCurrentDirectoryA(getPWD(l));
 #endif
-        ap_sen
 
         /* Set default return code to OK (200-ish) and reset the parse counter */
         l->returnCode = OK;
