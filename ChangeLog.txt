@@ -1,5 +1,7 @@
 0.44:
-- Added support for mod_dbd
+- Added support for mod_dbd (enable it in mod_plua.h)
+- General code cleanup
+- Fixed a bug where dbclose and the database gc would clean up differently
 
 0.43:
 - Switched to the APXS system for compiling and installing mod_pLua - many thanks to Igor Galic for his help on this.
