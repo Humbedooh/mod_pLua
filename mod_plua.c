@@ -1068,7 +1068,9 @@ static int lua_dbopen(lua_State *L) {
          */
         if (!strcmp(type, "mod_dbd")) {
             db->type = 1;
+#ifdef _WITH_MOD_DBD
             dbdhandle = ap_dbd_acquire(thread->r);
+#endif
             if (dbdhandle) {
                     db->alive = 1;
                     db->driver = dbdhandle->driver;

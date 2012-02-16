@@ -22,7 +22,7 @@
 #   ifdef _WIN32
 #      define sleep(a)    Sleep(a * 1000)
 #   endif
-
+//# define _WITH_MOD_DBD
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     mod_pLua includes
@@ -40,8 +40,10 @@
 #   include <http_config.h>
 #   include <http_log.h>
 #   include <mod_log_config.h>
+#ifndef _WIN32
 #   include <unistd.h>
 #   include <pthread.h>
+#endif
 #   include <lua.h>
 #   include <lualib.h>
 #   include <lauxlib.h>
@@ -379,7 +381,7 @@ const char                      *pLua_set_Multi(cmd_parms *cmd, void *cfg, const
 const char                      *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
 
-AP_DECLARE(ap_dbd_t*) ap_dbd_acquire(request_rec*);
+AP_DECLARE(ap_dbd_t*)           ap_dbd_acquire(request_rec*);
 
 static const command_rec        my_directives[] =
 {
