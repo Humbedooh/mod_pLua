@@ -1068,8 +1068,8 @@ static int lua_dbopen(lua_State *L) {
          */
         if (!strcmp(type, "mod_dbd")) {
             db->type = 1;
-#ifdef _WITH_MOD_DBD
-            dbdhandle = ap_dbd_acquire(thread->r);
+#if (_WITH_MOD_DBD == 1)
+            dbdhandle = ap_dbd_sacquire(thread->r);
 #endif
             if (dbdhandle) {
                     db->alive = 1;

@@ -22,7 +22,7 @@
 #   ifdef _WIN32
 #      define sleep(a)    Sleep(a * 1000)
 #   endif
-//# define _WITH_MOD_DBD
+# define _WITH_MOD_DBD 0
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     mod_pLua includes
