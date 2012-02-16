@@ -378,7 +378,7 @@ const char                      *pLua_set_Logging(cmd_parms *cmd, void *cfg, con
 const char                      *pLua_set_Multi(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
-#include <apache2/ap_compat.h>
+
 AP_DECLARE(ap_dbd_t*) ap_dbd_acquire(request_rec*);
 
 static const command_rec        my_directives[] =

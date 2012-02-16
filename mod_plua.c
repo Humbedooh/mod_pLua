@@ -1074,7 +1074,6 @@ static int lua_dbopen(lua_State *L) {
                     db->driver = dbdhandle->driver;
                     db->handle = dbdhandle->handle;
                     lua_newtable(L);
-                    
                     /* Create metatable for __gc function */
                     luaL_newmetatable(L, "pLua.dbopen");
                     lua_pushliteral(L, "__gc");
