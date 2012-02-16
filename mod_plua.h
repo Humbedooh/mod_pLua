@@ -8,8 +8,6 @@
  */
 
 #   define LINUX   2
-#   define _REENTRANT
-#   define _GNU_SOURCE
 #   define _LARGEFILE64_SOURCE
 #   define LUA_COMPAT_MODULE   1
 #   define PLUA_VERSION        45
@@ -22,7 +20,6 @@
 #   ifdef _WIN32
 #      define sleep(a)    Sleep(a * 1000)
 #   endif
-# define _WITH_MOD_DBD 0
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     mod_pLua includes
