@@ -30,7 +30,7 @@ luajit: mod_plua.c
 	$(APXS) -llua -c $?
 	
 install:
-	$(APXS) -a -i -n plua .libs/mod_plua.so
+	$(APXS) -a -i -n plua mod_plua.la
 
 clean:
 	rm -f *.lo *.so
