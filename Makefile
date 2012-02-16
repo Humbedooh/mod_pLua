@@ -15,7 +15,7 @@
 #  limitations under the License.
 
 APXS?=apxs
-PLUADBD?=
+PLUADBD?=0
 
 none:
 	@echo "Please do 'make VERSION' where VERSION is one of these:"
