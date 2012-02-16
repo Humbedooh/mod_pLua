@@ -823,7 +823,7 @@ static int lua_dbgc(lua_State *L) {
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
     db = (dbStruct *) lua_topointer(L, -1);
     if (db && db->alive) {
-        if (db->type == 0) { rc = apr_dbd_close(db->driver, db->handle); }
+        if (db->type == 0) { apr_dbd_close(db->driver, db->handle); }
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
