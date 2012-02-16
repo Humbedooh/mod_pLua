@@ -1171,14 +1171,7 @@ static int lua_header(lua_State *L) {
         value = value ? value : "(nil)";
         lua_settop(L, 0);
         apr_table_set(thread->r->headers_out, key, value);
-        //if (!strcmp(key, "Location")) thread->returnCode = HTTP_MOVED_TEMPORARILY;
-    } else {
-
-        /*
-         * ap_rputs("Couldn't find our userdata :(",thread->r);
-         */
     }
-
     return (0);
 }
 
