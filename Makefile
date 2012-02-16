@@ -18,9 +18,12 @@ APXS?=apxs
 
 none:
 	@echo "Please do 'make VERSION' where VERSION is one of these:"
-	@echo "   5.1 5.2 luajit"
+	@echo "   5.1 5.2 luajit luajit_debian"
 
 luajit: mod_plua.c
+	$(APXS) -I/usr/include/luajit-2.0 -lluajit -c $?
+
+luajit_debian: mod_plua.c
 	$(APXS) -I/usr/include/luajit-2.0 -lluajit-5.1 -c $?
 
 5.1: mod_plua.c
