@@ -1091,7 +1091,7 @@ static int lua_dbopen(lua_State *L) {
                     lua_rawseti(L, -2, 0);
                     return (1);
                 } else {
-                    apr_pool_destroy(pool);
+                    if (pool) apr_pool_destroy(pool);
                     lua_pushnil(L);
                     lua_pushliteral(L, "This module was not compiled with mod_dbd support.");
                     return (2);
@@ -1124,23 +1124,23 @@ static int lua_dbopen(lua_State *L) {
                             lua_pushnil(L);
                             if (error) {
                                 lua_pushstring(L, error);
-                                apr_pool_destroy(pool);
+                                if (pool) apr_pool_destroy(pool);
                                 return (2);
                             }
 
-                            apr_pool_destroy(pool);
+                            if (pool) apr_pool_destroy(pool);
                             return (1);
                         }
                     }
 
-                    apr_pool_clear(pool);
-                    apr_pool_destroy(pool);
+                    if (pool) apr_pool_clear(pool);
+                    if (pool) apr_pool_destroy(pool);
                     lua_pushnil(L);
                     lua_pushliteral(L, "No database connection string was specified.");
                     return (2);
                 } else {
-                    apr_pool_clear(pool);
-                    apr_pool_destroy(pool);
+                    if (pool) apr_pool_clear(pool);
+                    if (pool) apr_pool_destroy(pool);
                     lua_pushnil(thread->state);
                     lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
                     lua_pushinteger(thread->state, rc);
