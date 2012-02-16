@@ -796,7 +796,7 @@ static int lua_dbclose(lua_State *L) {
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
-        //apr_pool_destroy(db->pool);
+        if (db->pool) apr_pool_destroy(db->pool);
     }
 
     lua_settop(L, 0);
@@ -827,7 +827,7 @@ static int lua_dbgc(lua_State *L) {
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
-        apr_pool_destroy(db->pool);
+        if (db->pool) apr_pool_destroy(db->pool);
     }
 
     lua_settop(L, 0);
@@ -1091,6 +1091,7 @@ static int lua_dbopen(lua_State *L) {
                     lua_rawseti(L, -2, 0);
                     return (1);
                 } else {
+                    apr_pool_destroy(pool);
                     lua_pushnil(L);
                     lua_pushliteral(L, "This module was not compiled with mod_dbd support.");
                     return (2);
