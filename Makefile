@@ -19,7 +19,10 @@ PLUADBD?=0
 
 none:
 	@echo "Please do 'make VERSION' where VERSION is one of these:"
-	@echo "   5.1 5.2 luajit luajit_debian"
+	@echo "    5.1 5.2 luajit"
+	@echo " "
+	@echo "To add support for mod_dbd, run the following command before compiling:"
+	@echo "    export PLUADBD=1"
 
 luajit: mod_plua.c
 	$(APXS) -D_WITH_MOD_DBD=${PLUADBD} -I/usr/include/luajit-2.0 -lluajit-5.1 -c $?
