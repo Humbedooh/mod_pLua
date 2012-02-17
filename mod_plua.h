@@ -381,7 +381,7 @@ const char                      *pLua_set_Multi(cmd_parms *cmd, void *cfg, const
 const char                      *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_UID(cmd_parms *cmd, void *cfg, const char *arg)
+const char                      *pLua_set_UID(cmd_parms *cmd, void *cfg, const char *arg);
 
 AP_DECLARE(ap_dbd_t*)           ap_dbd_acquire(request_rec*);
 
