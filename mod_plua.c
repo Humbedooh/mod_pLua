@@ -1238,17 +1238,10 @@ static int lua_echo(lua_State *L) {
                 el = lua_tolstring(L, y, &x);
                 if (el && x > 0) {
                     ap_rwrite(el, x, thread->r);
-                    thread->written += x;
                 }
             } else {
                 el = lua_tostring(L, y);
                 if (el) ap_rputs(el, thread->r);
-                thread->written += strlen(el);
-            }
-
-            if (thread->written > 20480) {
-                ap_rflush(thread->r);
-                thread->written = 0;
             }
         }
 
