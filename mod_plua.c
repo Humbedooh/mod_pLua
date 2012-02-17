@@ -1482,13 +1482,7 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Server-Banner");
         lua_pushstring(thread->state, ap_get_server_banner());
         lua_rawset(L, -3);
-        
-#ifndef _WIN32
-        x = getenv("UNIQUE_ID");
-        lua_pushstring(thread->state, "Unique-ID");
-        lua_pushstring(thread->state, x ? x : "nil");
-        lua_rawset(L, -3);
-#endif
+
         return (1);
     }
 
