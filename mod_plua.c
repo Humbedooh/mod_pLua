@@ -1383,6 +1383,7 @@ static int lua_getEnv(lua_State *L) {
         apr_table_entry_t   *e = 0;
         char                *pwd = getPWD(thread);
         char                luaVersion[32];
+        const char *x;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         sprintf(luaVersion, "%u.%u", (LUA_VERSION_NUM / 100), (LUA_VERSION_NUM) % (LUA_VERSION_NUM / 100));
@@ -1426,6 +1427,17 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "pLua-Version");
         lua_pushinteger(thread->state, PLUA_VERSION);
         lua_rawset(L, -3);
+        lua_pushstring(thread->state, "pLua-Handle");
+        lua_pushfstring(thread->state, "%p", thread);
+        lua_rawset(L, -3);
+        lua_pushstring(thread->state, "Lua-State");
+        lua_pushfstring(thread->state, "%p", thread->state);
+        lua_rawset(L, -3);
+        lua_pushstring(thread->state, "Lua-Version");
+        lua_pushstring(thread->state, luaVersion);
+        lua_rawset(L, -3);
+        
+        /* Apache HTTP specific data */
         lua_pushstring(thread->state, "Request-Time");
         lua_pushinteger(thread->state, thread->r->request_time);
         lua_rawset(L, -3);
@@ -1439,15 +1451,7 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, thread->r->connection->remote_ip);
 #endif
         lua_rawset(L, -3);
-        lua_pushstring(thread->state, "pLua-Handle");
-        lua_pushfstring(thread->state, "%p", thread);
-        lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Lua-State");
-        lua_pushfstring(thread->state, "%p", thread->state);
-        lua_rawset(L, -3);
-        lua_pushstring(thread->state, "Lua-Version");
-        lua_pushstring(thread->state, luaVersion);
-        lua_rawset(L, -3);
+        
         lua_pushstring(thread->state, "Request-Method");
         lua_pushstring(thread->state, thread->r->method);
         lua_rawset(L, -3);
@@ -1478,6 +1482,13 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Server-Banner");
         lua_pushstring(thread->state, ap_get_server_banner());
         lua_rawset(L, -3);
+        
+#ifndef _WIN32
+        x = getenv("UNIQUE_ID");
+        lua_pushstring(thread->state, "Unique-ID");
+        lua_pushstring(thread->state, x ? x : "nil");
+        lua_rawset(L, -3);
+#endif
         return (1);
     }
 
