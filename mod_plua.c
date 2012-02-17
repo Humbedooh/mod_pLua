@@ -518,9 +518,9 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 #ifdef _WIN32
-                _snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);", input + at);
+                _snprintf(test, strlen(input) - at + 18, "echo([===[%s]===]);", input + at);
 #else
-                snprintf(test, strlen(input) - at + 14, "echo([=[%s]=]);", input + at);
+                snprintf(test, strlen(input) - at + 18, "echo([===[%s]===]);", input + at);
 #endif
                 at = inputSize;
                 lua_add_code(&output, test);
