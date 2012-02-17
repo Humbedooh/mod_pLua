@@ -112,7 +112,7 @@ static int plua_handler(request_rec *r) {
 #ifndef _WIN32
         if (LUA_RUN_AS_UID != -1) {
             UID = getuid();
-            if (setreuid(LUA_RUN_AS_UID, UID)) ap_rputs("Couldn't change UID!", r);
+            if (setfsuid(LUA_RUN_AS_UID)) ap_rputs("Couldn't change UID!", r);
         }
 #endif
         /* Set up the lua_thread struct and change to the current directory. */

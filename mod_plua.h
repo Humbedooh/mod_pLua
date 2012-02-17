@@ -42,6 +42,7 @@
 #   include <pthread.h>
 #   include <pwd.h>
 #   include <grp.h>
+#include <sys/fsuid.h>
 #endif
 #   include <lua.h>
 #   include <lualib.h>
