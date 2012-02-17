@@ -800,12 +800,12 @@ static int lua_dbclose(lua_State *L) {
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
     db = (dbStruct *) lua_topointer(L, -1);
     if (db && db->alive) {
-     //   if (db->type == 0) { rc = apr_dbd_close(db->driver, db->handle); }
-     //   else { rc = 0; }
+        if (db->type == 0) { rc = apr_dbd_close(db->driver, db->handle); }
+        else { rc = 0; }
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
-        if (db->pool) apr_pool_destroy(db->pool);
+        if (db->pool && db->type == 0) apr_pool_destroy(db->pool);
     }
 
     lua_settop(L, 0);
@@ -836,7 +836,7 @@ static int lua_dbgc(lua_State *L) {
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
-        if (db->pool) apr_pool_destroy(db->pool);
+        if (db->pool && db->type == 0) apr_pool_destroy(db->pool);
     }
 
     lua_settop(L, 0);
