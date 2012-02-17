@@ -438,8 +438,8 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 if (!strcmp(pLua_file_tags[i].sTag, "<?")) continue;
             }
             matchStart = strstr((char *) input + at, pLua_file_tags[i].sTag);
-            if (pmatchStart == 0) pmatchStart = matchStart;
-            if (matchStart && matchStart <= pmatchStart) {
+            if (pmatchStart == 0) pmatchStart = matchStart+1;
+            if (matchStart && matchStart < pmatchStart) {
                 sTag = pLua_file_tags[i].sTag;
                 eTag = pLua_file_tags[i].eTag;
                 pmatchStart = matchStart;
