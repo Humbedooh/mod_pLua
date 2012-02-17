@@ -40,9 +40,6 @@
 #ifndef _WIN32
 #   include <unistd.h>
 #   include <pthread.h>
-#   include <pwd.h>
-#   include <grp.h>
-#include <sys/fsuid.h>
 #endif
 #   include <lua.h>
 #   include <lualib.h>
@@ -384,7 +381,6 @@ const char                      *pLua_set_Multi(cmd_parms *cmd, void *cfg, const
 const char                      *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
 const char                      *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_UID(cmd_parms *cmd, void *cfg, const char *arg);
 
 AP_DECLARE(ap_dbd_t*)           ap_dbd_acquire(request_rec*);
 
@@ -394,7 +390,6 @@ static const command_rec        my_directives[] =
     AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
     AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
     AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file."),
-    AP_INIT_TAKE1("pLuaUID", pLua_set_UID, NULL, OR_ALL, "Sets a specific UID to run pLua scripts as"),
     AP_INIT_TAKE1("pLuaShortHand", pLua_set_ShortHand, NULL, OR_ALL, "Set to 0 to disable shorthand opening tags. Default is 1 (enabled)"),
     AP_INIT_TAKE1
         (
