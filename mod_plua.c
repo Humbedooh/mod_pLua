@@ -805,7 +805,7 @@ static int lua_dbclose(lua_State *L) {
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
-      //  if (db->pool) apr_pool_destroy(db->pool);
+        if (db->pool) apr_pool_destroy(db->pool);
     }
 
     lua_settop(L, 0);
