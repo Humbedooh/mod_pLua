@@ -112,7 +112,7 @@ static int plua_handler(request_rec *r) {
 #ifndef _WIN32
         if (LUA_RUN_AS_UID != -1) {
             UID = getuid();
-            setuid(LUA_RUN_AS_UID);
+            if (setuid(LUA_RUN_AS_UID)) ap_rputs("Couldn't change UID!", r);
         }
 #endif
         /* Set up the lua_thread struct and change to the current directory. */
@@ -1425,6 +1425,9 @@ static int lua_getEnv(lua_State *L) {
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "pLua-Runs");
         lua_pushinteger(thread->state, LUA_RUNS);
+        lua_rawset(L, -3);
+        lua_pushstring(thread->state, "pLua-UID");
+        lua_pushinteger(thread->state, LUA_RUN_AS_UID);
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "pLua-Sessions");
         lua_pushinteger(thread->state, thread->sessions);
