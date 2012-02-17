@@ -82,6 +82,7 @@ static int plua_handler(request_rec *r) {
     /*~~~~~~~~~~~~~~~~~~~*/
     int     exists = 1;
     char    compileRaw = 0;
+    int     UID = 0;
     /*~~~~~~~~~~~~~~~~~~~*/
 
     /* Check if we are being called, and that the request method is one we can handle. */
@@ -106,6 +107,12 @@ static int plua_handler(request_rec *r) {
 
         /* Check if state acuisition worked */
         if (!l) return (HTTP_INTERNAL_SERVER_ERROR);
+        
+        /* Test: If a UID is requested, get the original one and set the new one */
+        if (LUA_RUN_AS_UID != -1) {
+            UID = getuid();
+            setuid(LUA_RUN_AS_UID);
+        }
 
         /* Set up the lua_thread struct and change to the current directory. */
         L = l->state;
@@ -180,6 +187,11 @@ static int plua_handler(request_rec *r) {
             if (LUA_TIMEOUT > 0) {
                 lua_sethook(L, pLua_debug_hook, 0, 0);
             }
+        }
+        
+        /* Test: If a UID is requested, set it back to the original one */
+        if (LUA_RUN_AS_UID != -1) {
+            setuid(UID);
         }
 
         /* Cleanup */
@@ -2839,3 +2851,17 @@ const char *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg) {
     LUA_SHORTHAND = x > 0 ? x : 0;
     return (NULL);
 }
+
+
+const char *pLua_set_UID(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    struct passwd   *runas;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+    if (!strcmp(arg, "root")) LUA_RUN_AS_UID = 0;
+    runas = getpwnam(arg);
+    if (runas && runas->pw_uid) LUA_RUN_AS_UID = runas->pw_uid;
+    return (NULL);
+}
+
