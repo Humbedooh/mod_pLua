@@ -432,6 +432,9 @@ int lua_parse_file(lua_thread *thread, char *input) {
 
     while (at < inputSize) {
         for (i = 0; pLua_file_tags[i].sTag != 0; i++) {
+            if (LUA_SHORTHAND == 0) {
+                if (!strcmp(pLua_file_tags[i].sTag, "<?")) continue;
+            }
             matchStart = strstr((char *) input + at, pLua_file_tags[i].sTag);
             if (matchStart) {
                 sTag = pLua_file_tags[i].sTag;
@@ -2813,5 +2816,20 @@ const char *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg) {
         }
     }
 
+    return (NULL);
+}
+
+/*
+ =======================================================================================================================
+    pLuaShortHand N: Sets whether or not to enable shorthand opening tag support. Set to 1 for enabled, 0 for disabled.
+ =======================================================================================================================
+ */
+const char *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
+    int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
+    LUA_SHORTHAND = x > 0 ? x : 0;
     return (NULL);
 }
