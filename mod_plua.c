@@ -109,11 +109,12 @@ static int plua_handler(request_rec *r) {
         if (!l) return (HTTP_INTERNAL_SERVER_ERROR);
         
         /* Test: If a UID is requested, get the original one and set the new one */
+#ifndef _WIN32
         if (LUA_RUN_AS_UID != -1) {
             UID = getuid();
             setuid(LUA_RUN_AS_UID);
         }
-
+#endif
         /* Set up the lua_thread struct and change to the current directory. */
         L = l->state;
         l->r = r;
@@ -188,12 +189,12 @@ static int plua_handler(request_rec *r) {
                 lua_sethook(L, pLua_debug_hook, 0, 0);
             }
         }
-        
+#ifndef _WIN32
         /* Test: If a UID is requested, set it back to the original one */
         if (LUA_RUN_AS_UID != -1) {
             setuid(UID);
         }
-
+#endif
         /* Cleanup */
         lua_release_state(l);
         return (rc);
@@ -2858,10 +2859,11 @@ const char *pLua_set_UID(cmd_parms *cmd, void *cfg, const char *arg) {
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     struct passwd   *runas;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
+#ifndef _WIN32
     if (!strcmp(arg, "root")) LUA_RUN_AS_UID = 0;
     runas = getpwnam(arg);
     if (runas && runas->pw_uid) LUA_RUN_AS_UID = runas->pw_uid;
+#endif
     return (NULL);
 }
 

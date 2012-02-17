@@ -40,6 +40,8 @@
 #ifndef _WIN32
 #   include <unistd.h>
 #   include <pthread.h>
+#   include <pwd.h>
+#   include <grp.h>
 #endif
 #   include <lua.h>
 #   include <lualib.h>
