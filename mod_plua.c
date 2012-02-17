@@ -421,6 +421,7 @@ int lua_parse_file(lua_thread *thread, char *input) {
     int         rc = 0;
     char        *output = 0;
     char        *matchStart,
+                *pmatchStart,
                 *matchEnd;
     size_t      at = 0;
     size_t      inputSize = strlen(input);
@@ -431,15 +432,21 @@ int lua_parse_file(lua_thread *thread, char *input) {
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     while (at < inputSize) {
+        pmatchStart = 0;
         for (i = 0; pLua_file_tags[i].sTag != 0; i++) {
             if (LUA_SHORTHAND == 0) {
                 if (!strcmp(pLua_file_tags[i].sTag, "<?")) continue;
             }
             matchStart = strstr((char *) input + at, pLua_file_tags[i].sTag);
-            if (matchStart) {
+            if (pmatchStart == 0) pmatchStart = matchStart;
+            if (matchStart && matchStart <= pmatchStart) {
                 sTag = pLua_file_tags[i].sTag;
                 eTag = pLua_file_tags[i].eTag;
-                break;
+                pmatchStart = matchStart;
+                //break;
+            }
+            else {
+                matchStart = pmatchStart;
             }
         }
 
