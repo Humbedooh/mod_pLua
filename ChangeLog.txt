@@ -1,5 +1,6 @@
 0.46:
 - Added the pLuaMemoryLimit directive for setting a memory limit (in kb) for each Lua state
+- Added the pLuaIgnoreLibrary directive for disabling specific libraries in the Lua states
 
 0.45:
 - Fixed a bug (presumably) where db:close() could cause a segfault when using a mod_dbd handle

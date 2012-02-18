@@ -1930,6 +1930,11 @@ static void register_lua_functions(lua_State *L) {
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
+/*
+ =======================================================================================================================
+ *  pLua_openlibs (lua_State *L): Opens all standard libraries except those forbidden by the pLuaIgnoreLibrary directive
+ =======================================================================================================================
+ */
 LUALIB_API void                 pLua_openlibs (lua_State *L) {
     const luaL_Reg *lib = plualibs;
     for (; lib->func; lib++) {
