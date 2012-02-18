@@ -1950,7 +1950,7 @@ void pLua_create_state(lua_thread *thread, int x) {
     L = (lua_State *) thread->state;
     luaopen_base(L);
     luaopen_table(L);
-    //if (!memmem(LUA_IGNORE, 255, "io", 2))      luaopen_io(L);
+    if (!memmem(LUA_IGNORE, 255, "io", 2))      luaopen_io(L);
     luaopen_string(L);
     luaopen_math(L);
     //if (!memmem(LUA_IGNORE, 255, "package", 7)) luaopen_package(L);
