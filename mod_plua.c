@@ -1933,7 +1933,7 @@ static void register_lua_functions(lua_State *L) {
 LUALIB_API void                 pLua_openlibs (lua_State *L) {
     const luaL_Reg *lib = plualibs;
     for (; lib->func; lib++) {
-        if (!strlen(LUA_IGNORE) || !strstr(LUA_IGNORE, lib->name)) {
+        if (strcmp(lib->name, "debug")) {
             lua_pushcfunction(L, lib->func);
             lua_pushstring(L, lib->name);
             lua_call(L, 1, 0);
