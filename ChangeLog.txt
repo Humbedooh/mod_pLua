@@ -1,3 +1,7 @@
+0.47:
+- dbopen() now only requires one parameter if opening a mod_dbd connection
+- Content type is now assumed to be text/html by default
+
 0.46:
 - Added the pLuaMemoryLimit directive for setting a memory limit (in kb) for each Lua state
 - Added the pLuaIgnoreLibrary directive for disabling specific libraries in the Lua states

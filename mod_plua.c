@@ -2168,7 +2168,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
         lua_rawseti(L->state, LUA_REGISTRYINDEX, 0);
         return (L);
     } else {
-        sleep(1);
+        apr_sleep(500000);
         return (lua_acquire_state(r, hostname));
     }
 }
