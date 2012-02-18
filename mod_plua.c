@@ -1247,12 +1247,13 @@ static int lua_flush(lua_State *L) {
 static int lua_sleep(lua_State *L) {
 
     /*~~~~~~*/
-    int n = 1;
+    lua_Number n = 1;
     /*~~~~~~*/
 
     luaL_checktype(L, 1, LUA_TNUMBER);
-    n = luaL_optint(L, 1, 1);
-    sleep(((LUA_TIMEOUT > 0) && (LUA_TIMEOUT < n)) ? LUA_TIMEOUT : n);
+    n = lua_tonumber(L, 1);
+    n = ((LUA_TIMEOUT > 0) && (LUA_TIMEOUT < n)) ? LUA_TIMEOUT : n;
+    apr_sleep(n * 1000000);
     return (0);
 }
 
@@ -2168,7 +2169,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname) {
         lua_rawseti(L->state, LUA_REGISTRYINDEX, 0);
         return (L);
     } else {
-        apr_sleep(500000);
+        apr_sleep(125000);
         return (lua_acquire_state(r, hostname));
     }
 }
