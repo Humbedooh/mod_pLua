@@ -24,6 +24,7 @@ static void register_hooks(apr_pool_t *pool) {
     for (x = 0; x < PLUA_RAW_TYPES; x++) {
         pLua_rawTypes[x] = (char *) apr_pcalloc(pool, 64);
     }
+    memset(LUA_IGNORE, 0, 256);
 
     /* Hook initialization of global variables to the child init stage */
     ap_hook_child_init(module_init, NULL, NULL, APR_HOOK_MIDDLE);
@@ -1456,6 +1457,9 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Lua-Version");
         lua_pushstring(thread->state, luaVersion);
         lua_rawset(L, -3);
+        lua_pushstring(thread->state, "pLua-Disabled-Libraries");
+        lua_pushstring(thread->state, LUA_IGNORE);
+        lua_rawset(L, -3);
         
         /* Apache HTTP specific data */
         lua_pushstring(thread->state, "Request-Time");
@@ -1944,8 +1948,14 @@ void pLua_create_state(lua_thread *thread, int x) {
     thread->state = luaL_newstate();
     thread->sessions = 0;
     L = (lua_State *) thread->state;
-    luaL_openlibs(L);
-    if (LUA_DEBUG) luaopen_debug(L);
+    luaopen_base(L);
+    luaopen_table(L);
+    if (!memmem(LUA_IGNORE, 256, "io", 2))      luaopen_io(L);
+    luaopen_string(L);
+    luaopen_math(L);
+    if (!memmem(LUA_IGNORE, 256, "package", 7)) luaopen_package(L);
+    if (!memmem(LUA_IGNORE, 256, "debug", 5))   luaopen_debug(L);
+    if (!memmem(LUA_IGNORE, 256, "os", 2))      luaopen_os(L);
     register_lua_functions(L);
 
     /* Push the lua_thread struct onto the Lua registry */
@@ -2890,15 +2900,11 @@ const char *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg) {
 
 /*
  =======================================================================================================================
-    pLuaDebug N: Enables/disables the Lua debug library.
+    pLuaIgnoreLibrary lib: Ignores one or more libraries from being loaded into the Lua state.
+ *  This is useful for sandboxing Lua.
  =======================================================================================================================
  */
-const char *pLua_set_Debug(cmd_parms *cmd, void *cfg, const char *arg) {
-
-    /*~~~~~~~~~~~~~~*/
-    int x = atoi(arg);
-    /*~~~~~~~~~~~~~~*/
-
-    LUA_DEBUG = x > 0 ? x : 0;
+const char *pLua_set_Ignore(cmd_parms *cmd, void *cfg, const char *arg) {
+    sprintf(LUA_IGNORE, arg);
     return (NULL);
 }
