@@ -20,6 +20,7 @@
 #   ifdef _WIN32
 #      define sleep(a)    Sleep(a * 1000)
 #   endif
+
 /*$1
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     mod_pLua includes
@@ -37,10 +38,10 @@
 #   include <http_config.h>
 #   include <http_log.h>
 #   include <mod_log_config.h>
-#ifndef _WIN32
-#   include <unistd.h>
-#   include <pthread.h>
-#endif
+#   ifndef _WIN32
+#      include <unistd.h>
+#      include <pthread.h>
+#   endif
 #   include <lua.h>
 #   include <lualib.h>
 #   include <lauxlib.h>
@@ -140,10 +141,11 @@ typedef struct
     apr_pool_t              *pool;
     char                    type;
 } dbStruct;
-typedef struct {
-    apr_dbd_t *handle;
-    apr_dbd_driver_t *driver;
-    apr_hash_t *prepared;
+typedef struct
+{
+    apr_dbd_t           *handle;
+    apr_dbd_driver_t    *driver;
+    apr_hash_t          *prepared;
 } ap_dbd_t;
 typedef union
 {
@@ -303,99 +305,100 @@ static void pthread_mutex_init(HANDLE *mutex, int blargh) {
     return;
 }
 #   endif
-static void                     pLua_print_error(lua_thread *thread, const char *type, const char *filename);
-static int                      module_lua_panic(lua_State *L);
-static lua_thread               *pLua_get_thread(lua_State *L);
-static void                     pLua_debug_hook(lua_State *L, lua_Debug *ar);
-void                            lua_add_code(char **buffer, const char *string);
-int                             lua_parse_file(lua_thread *thread, char *input);
-int                             lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *statbuf, char rawCompile);
-char                            *getPWD(lua_thread *thread);
-void                            sha256_starts(sha256_context *ctx);
-void                            sha256_process(sha256_context *ctx, uint8_t data[64]);
-void                            sha256_update(sha256_context *ctx, uint8_t *input, uint32_t length);
-void                            sha256_finish(sha256_context *ctx, uint8_t digest[32]);
-char                            *pLua_sha256(const char *digest, lua_thread *thread);
-static char                     value(char c);
-int                             pLua_unbase64(unsigned char *dest, const unsigned char *src, size_t srclen);
-char                            *pLua_decode_base64(const char *src, lua_thread *thread);
-char                            base64_encode_value(char value_in);
-int                             base64_encode_block
-                                (
-                                    const char          *plaintext_in,
-                                    size_t              length_in,
-                                    char                *code_out,
-                                    base64_encodestate  *state_in
-                                );
-int                             base64_encode_blockend(char *code_out, base64_encodestate *state_in);
-char                            *pLua_encode_base64(const char *src, size_t len, lua_thread *thread);
-static int                      lua_sha256(lua_State *L);
-static int                      lua_b64dec(lua_State *L);
-static int                      lua_b64enc(lua_State *L);
+static void         pLua_print_error(lua_thread *thread, const char *type, const char *filename);
+static int          module_lua_panic(lua_State *L);
+static lua_thread   *pLua_get_thread(lua_State *L);
+static void         pLua_debug_hook(lua_State *L, lua_Debug *ar);
+void                lua_add_code(char **buffer, const char *string);
+int                 lua_parse_file(lua_thread *thread, char *input);
+int                 lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *statbuf, char rawCompile);
+char                *getPWD(lua_thread *thread);
+void                sha256_starts(sha256_context *ctx);
+void                sha256_process(sha256_context *ctx, uint8_t data[64]);
+void                sha256_update(sha256_context *ctx, uint8_t *input, uint32_t length);
+void                sha256_finish(sha256_context *ctx, uint8_t digest[32]);
+char                *pLua_sha256(const char *digest, lua_thread *thread);
+static char         value(char c);
+int                 pLua_unbase64(unsigned char *dest, const unsigned char *src, size_t srclen);
+char                *pLua_decode_base64(const char *src, lua_thread *thread);
+char                base64_encode_value(char value_in);
+int                 base64_encode_block(const char *plaintext_in, size_t length_in, char *code_out, base64_encodestate *state_in);
+int                 base64_encode_blockend(char *code_out, base64_encodestate *state_in);
+char                *pLua_encode_base64(const char *src, size_t len, lua_thread *thread);
+static int          lua_sha256(lua_State *L);
+static int          lua_b64dec(lua_State *L);
+static int          lua_b64enc(lua_State *L);
 
 /*
  * static int lua_explode(lua_State *L);
  */
-static int                      lua_fileexists(lua_State *L);
-static int                      lua_unlink(lua_State *L);
-static int                      lua_rename(lua_State *L);
-static int                      lua_dbclose(lua_State *L);
-static int                      lua_dbgc(lua_State *L);
-static int                      lua_dbhandle(lua_State *L);
-static int                      lua_dbdo(lua_State *L);
-static int                      lua_dbescape(lua_State *L);
-static int                      lua_dbquery(lua_State *L);
-static int                      lua_dbopen(lua_State *L);
-static int                      lua_header(lua_State *L);
-static int                      lua_flush(lua_State *L);
-static int                      lua_sleep(lua_State *L);
-static int                      lua_echo(lua_State *L);
-static int                      lua_exit(lua_State *L);
-static int                      lua_setContentType(lua_State *L);
-static int                      lua_setErrorLevel(lua_State *L);
-static int                      lua_setReturnCode(lua_State *L);
-static int                      lua_httpError(lua_State *L);
-static int                      lua_getEnv(lua_State *L);
-static int                      lua_fileinfo(lua_State *L);
-static pLuaClock                pLua_getClock(char useAPR);
-static int                      lua_clock(lua_State *L);
-static int                      lua_compileTime(lua_State *L);
-static int                      util_read(request_rec *r, const char **rbuf, apr_off_t *size);
-static int                      parse_urlencoded(lua_thread *thread, const char *data);
-static int                      parse_multipart(lua_thread *thread, const char *data, const char *multipart, apr_off_t size);
-static int                      lua_parse_post(lua_State *L);
-static int                      lua_parse_get(lua_State *L);
-static int                      lua_includeFile(lua_State *L);
-static void                     register_lua_functions(lua_State *L);
-void                            lua_init_state(lua_thread *thread, int x);
-void                            pLua_init_states(lua_domain *domain);
-lua_thread                      *lua_acquire_state(request_rec *r, const char *hostname);
-void                            lua_release_state(lua_thread *thread);
-static int                      plua_handler(request_rec *r);
-static void                     module_init(apr_pool_t *pool, server_rec *s);
-static void                     register_hooks(apr_pool_t *pool);
-const char                      *pLua_set_LuaStates(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_LuaRuns(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_Timeout(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_Logging(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_Multi(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg);
-const char                      *pLua_set_Ignore(cmd_parms *cmd, void *cfg, const char *arg);
-
-AP_DECLARE(ap_dbd_t*)           ap_dbd_acquire(request_rec*);
-
+static int          lua_fileexists(lua_State *L);
+static int          lua_unlink(lua_State *L);
+static int          lua_rename(lua_State *L);
+static int          lua_dbclose(lua_State *L);
+static int          lua_dbgc(lua_State *L);
+static int          lua_dbhandle(lua_State *L);
+static int          lua_dbdo(lua_State *L);
+static int          lua_dbescape(lua_State *L);
+static int          lua_dbquery(lua_State *L);
+static int          lua_dbopen(lua_State *L);
+static int          lua_header(lua_State *L);
+static int          lua_flush(lua_State *L);
+static int          lua_sleep(lua_State *L);
+static int          lua_echo(lua_State *L);
+static int          lua_exit(lua_State *L);
+static int          lua_setContentType(lua_State *L);
+static int          lua_setErrorLevel(lua_State *L);
+static int          lua_setReturnCode(lua_State *L);
+static int          lua_httpError(lua_State *L);
+static int          lua_getEnv(lua_State *L);
+static int          lua_fileinfo(lua_State *L);
+static pLuaClock    pLua_getClock(char useAPR);
+static int          lua_clock(lua_State *L);
+static int          lua_compileTime(lua_State *L);
+static int          util_read(request_rec *r, const char **rbuf, apr_off_t *size);
+static int          parse_urlencoded(lua_thread *thread, const char *data);
+static int          parse_multipart(lua_thread *thread, const char *data, const char *multipart, apr_off_t size);
+static int          lua_parse_post(lua_State *L);
+static int          lua_parse_get(lua_State *L);
+static int          lua_includeFile(lua_State *L);
+static void         register_lua_functions(lua_State *L);
+void                lua_init_state(lua_thread *thread, int x);
+void                pLua_init_states(lua_domain *domain);
+lua_thread          *lua_acquire_state(request_rec *r, const char *hostname);
+void                lua_release_state(lua_thread *thread);
+static int          plua_handler(request_rec *r);
+static void         module_init(apr_pool_t *pool, server_rec *s);
+static void         register_hooks(apr_pool_t *pool);
+const char          *pLua_set_LuaStates(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_LuaRuns(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_LuaFiles(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_Timeout(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_Logging(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_Multi(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_LogLevel(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg);
+const char          *pLua_set_Ignore(cmd_parms *cmd, void *cfg, const char *arg);
+AP_DECLARE (ap_dbd_t *)
+ap_dbd_acquire(request_rec *);
 static const command_rec        my_directives[] =
 {
     AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
     AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
     AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
     AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file."),
-    AP_INIT_TAKE1("pLuaMemoryLimit", pLua_set_MemoryLimit, NULL, OR_ALL, "Sets a specific memory limit (in kilobytes) for each thread. Default is 0 (no limit)."),
-    AP_INIT_TAKE1("pLuaIgnoreLibrary", pLua_set_Ignore, NULL, OR_ALL, "Ignores one or more specified Lua core libraries from being loaded into state."),
+    AP_INIT_TAKE1
+        (
+            "pLuaMemoryLimit", pLua_set_MemoryLimit, NULL, OR_ALL,
+                "Sets a specific memory limit (in kilobytes) for each thread. Default is 0 (no limit)."
+        ),
+    AP_INIT_TAKE1
+        (
+            "pLuaIgnoreLibrary", pLua_set_Ignore, NULL, OR_ALL,
+                "Ignores one or more specified Lua core libraries from being loaded into state."
+        ),
     AP_INIT_TAKE1("pLuaShortHand", pLua_set_ShortHand, NULL, OR_ALL, "Set to 0 to disable shorthand opening tags. Default is 1 (enabled)"),
     AP_INIT_TAKE1
         (
@@ -455,21 +458,18 @@ static const luaL_reg           String_methods[] =
     { "SHA256", lua_sha256 },
     { "decode64", lua_b64dec },
     { "encode64", lua_b64enc },
-
-    /* { "explode", lua_explode }, */
     { 0, 0 }
 };
-
-static const luaL_Reg plualibs[] = {
-  {"", luaopen_base},
-  {LUA_LOADLIBNAME, luaopen_package},
-  {LUA_TABLIBNAME, luaopen_table},
-  {LUA_IOLIBNAME, luaopen_io},
-  {LUA_OSLIBNAME, luaopen_os},
-  {LUA_STRLIBNAME, luaopen_string},
-  {LUA_MATHLIBNAME, luaopen_math},
-  {LUA_DBLIBNAME, luaopen_debug},
-  {NULL, NULL}
+static const luaL_Reg           plualibs[] =
+{
+    { "", luaopen_base },
+    { LUA_LOADLIBNAME, luaopen_package },
+    { LUA_TABLIBNAME, luaopen_table },
+    { LUA_IOLIBNAME, luaopen_io },
+    { LUA_OSLIBNAME, luaopen_os },
+    { LUA_STRLIBNAME, luaopen_string },
+    { LUA_MATHLIBNAME, luaopen_math },
+    { LUA_DBLIBNAME, luaopen_debug },
+    { NULL, NULL }
 };
-
 #endif /* mod_plua.h */

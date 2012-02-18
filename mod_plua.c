@@ -1,6 +1,6 @@
 /*
  * File: main.c Author: Humbedooh Created on 4. january 2012, 23:30 ;
- * Include the headers
+ * Include the header
  */
 #include "mod_plua.h"
 
@@ -24,6 +24,7 @@ static void register_hooks(apr_pool_t *pool) {
     for (x = 0; x < PLUA_RAW_TYPES; x++) {
         pLua_rawTypes[x] = (char *) apr_pcalloc(pool, 64);
     }
+
     memset(LUA_IGNORE, 0, 256);
 
     /* Hook initialization of global variables to the child init stage */
@@ -48,7 +49,7 @@ static void module_init(apr_pool_t *pool, server_rec *s) {
 
     /*
      * Get the difference between apt_time_now and the native clock function if any. This is, at present,
-     * only really needed by Windows
+     * only really needed by Window
      */
     aprClock = pLua_getClock(1);
     cpuClock = pLua_getClock(0);
@@ -108,7 +109,7 @@ static int plua_handler(request_rec *r) {
 
         /* Check if state acuisition worked */
         if (!l) return (HTTP_INTERNAL_SERVER_ERROR);
-        
+
         /* Set up the lua_thread struct and change to the current directory. */
         L = l->state;
         l->r = r;
@@ -366,9 +367,10 @@ static void pLua_debug_hook(lua_State *L, lua_Debug *ar) {
 
     then++;
     if ((then % 200) == 0) {
-        
+
         /* Script timeout testing */
         if (LUA_TIMEOUT > 0) {
+
             /*~~~~~~~~~~~~~~~~~~*/
             time_t  now = time(0);
             /*~~~~~~~~~~~~~~~~~~*/
@@ -377,17 +379,21 @@ static void pLua_debug_hook(lua_State *L, lua_Debug *ar) {
             if (thread && (now - thread->runTime) > LUA_TIMEOUT)
                 luaL_error(L, "The script took too long to execute (timed out)!\n", "the script...somewhere!");
         }
-        
+
         /* Memory limit testing */
-        if (LUA_MEM_LIMIT > 0 ) {
+        if (LUA_MEM_LIMIT > 0) {
+
+            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
             int kb = lua_gc(L, LUA_GCCOUNT, 0);
-            
-            // If, at first, we've hit the limit, attempt to GC our way out of it.
-            if ( kb > LUA_MEM_LIMIT ) {
+            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+            /* If, at first, we've hit the limit, attempt to GC our way out of it. */
+            if (kb > LUA_MEM_LIMIT) {
                 lua_gc(L, LUA_GCCOLLECT, 0);
                 kb = lua_gc(L, LUA_GCCOUNT, 0);
-                // If this didn't work, it's time to b0rk
-                if ( kb > LUA_MEM_LIMIT ) luaL_error(L, "Memory limit reached!\n", "the script...somewhere!");
+
+                /* If this didn't work, it's time to b0rk */
+                if (kb > LUA_MEM_LIMIT) luaL_error(L, "Memory limit reached!\n", "the script...somewhere!");
             }
         }
     }
@@ -456,14 +462,17 @@ int lua_parse_file(lua_thread *thread, char *input) {
             if (LUA_SHORTHAND == 0) {
                 if (!strcmp(pLua_file_tags[i].sTag, "<?")) continue;
             }
+
             matchStart = strstr((char *) input + at, pLua_file_tags[i].sTag);
-            if (matchStart && ( (matchStart < pmatchStart) || pmatchStart == 0) ) {
+            if (matchStart && ((matchStart < pmatchStart) || pmatchStart == 0)) {
                 sTag = pLua_file_tags[i].sTag;
                 eTag = pLua_file_tags[i].eTag;
                 pmatchStart = matchStart;
-                //break;
-            }
-            else {
+
+                /*
+                 * break;
+                 */
+            } else {
                 matchStart = pmatchStart;
             }
         }
@@ -819,8 +828,12 @@ static int lua_dbclose(lua_State *L) {
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
     db = (dbStruct *) lua_topointer(L, -1);
     if (db && db->alive) {
-        if (db->type == 0) { rc = apr_dbd_close(db->driver, db->handle); }
-        else { rc = 0; }
+        if (db->type == 0) {
+            rc = apr_dbd_close(db->driver, db->handle);
+        } else {
+            rc = 0;
+        }
+
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
@@ -851,7 +864,10 @@ static int lua_dbgc(lua_State *L) {
     luaL_checktype(L, -1, LUA_TLIGHTUSERDATA);
     db = (dbStruct *) lua_topointer(L, -1);
     if (db && db->alive) {
-        if (db->type == 0) { apr_dbd_close(db->driver, db->handle); }
+        if (db->type == 0) {
+            apr_dbd_close(db->driver, db->handle);
+        }
+
         db->driver = 0;
         db->handle = 0;
         db->alive = 0;
@@ -1064,7 +1080,7 @@ static int lua_dbquery(lua_State *L) {
  */
 static int lua_dbopen(lua_State *L) {
 
-    /*~~~~~~~~~~~~~~~~~~~~~~~*/
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     const char      *type;
     const char      *arguments;
     const char      *error = 0;
@@ -1072,18 +1088,16 @@ static int lua_dbopen(lua_State *L) {
     dbStruct        *db = 0;
     apr_status_t    rc = 0;
     apr_pool_t      *pool = 0;
-    ap_dbd_t*       dbdhandle = 0;
-    /*~~~~~~~~~~~~~~~~~~~~~~~*/
+    ap_dbd_t        *dbdhandle = 0;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     thread = pLua_get_thread(L);
     if (thread) {
-        
         apr_pool_create(&pool, thread->bigPool);
         db = (dbStruct *) apr_pcalloc(pool, sizeof(dbStruct));
-        
         db->alive = 0;
         db->pool = pool;
-        db->type = 0; // 0 for regular, 1 for mod_dbd
+        db->type = 0;   /* 0 for regular, 1 for mod_dbd */
         apr_dbd_init(pool);
         luaL_checktype(L, 1, LUA_TSTRING);
         luaL_checktype(L, 2, LUA_TSTRING);
@@ -1100,85 +1114,87 @@ static int lua_dbopen(lua_State *L) {
             dbdhandle = ap_dbd_acquire(thread->r);
 #endif
             if (dbdhandle) {
-                    db->alive = 1;
-                    db->driver = dbdhandle->driver;
-                    db->handle = dbdhandle->handle;
-                    lua_newtable(L);
-                    /* Create metatable for __gc function */
-                    luaL_newmetatable(L, "pLua.dbopen");
-                    lua_pushliteral(L, "__gc");
-                    lua_pushcfunction(L, lua_dbgc);
-                    lua_rawset(L, -3);
-                    lua_setmetatable(L, -2);
+                db->alive = 1;
+                db->driver = dbdhandle->driver;
+                db->handle = dbdhandle->handle;
+                lua_newtable(L);
 
-                    /* Register db functions */
-                    luaL_register(L, NULL, db_methods);
+                /* Create metatable for __gc function */
+                luaL_newmetatable(L, "pLua.dbopen");
+                lua_pushliteral(L, "__gc");
+                lua_pushcfunction(L, lua_dbgc);
+                lua_rawset(L, -3);
+                lua_setmetatable(L, -2);
 
-                    /* lua_newuserdata() */
-                    lua_pushlightuserdata(L, db);
-                    lua_rawseti(L, -2, 0);
-                    return (1);
-                } else {
-                    if (pool) apr_pool_destroy(pool);
-                    lua_pushnil(L);
-                    lua_pushliteral(L, "This module was not compiled with mod_dbd support.");
-                    return (2);
-                }
+                /* Register db functions */
+                luaL_register(L, NULL, db_methods);
+
+                /* lua_newuserdata() */
+                lua_pushlightuserdata(L, db);
+                lua_rawseti(L, -2, 0);
+                return (1);
+            } else {
+                if (pool) apr_pool_destroy(pool);
+                lua_pushnil(L);
+                lua_pushliteral(L, "This module was not compiled with mod_dbd support.");
+                return (2);
             }
-            else {
-                rc = apr_dbd_get_driver(db->pool, type, &db->driver);
-                if (rc == APR_SUCCESS) {
-                    if (strlen(arguments)) {
-                        rc = apr_dbd_open_ex(db->driver, db->pool, arguments, &db->handle, &error);
-                        if (rc == APR_SUCCESS) {
-                            db->alive = 1;
-                            lua_newtable(L);
+        } else {
+            rc = apr_dbd_get_driver(db->pool, type, &db->driver);
+            if (rc == APR_SUCCESS) {
+                if (strlen(arguments)) {
+                    rc = apr_dbd_open_ex(db->driver, db->pool, arguments, &db->handle, &error);
+                    if (rc == APR_SUCCESS) {
+                        db->alive = 1;
+                        lua_newtable(L);
 
-                            /* Create metatable for __gc function */
-                            luaL_newmetatable(L, "pLua.dbopen");
-                            lua_pushliteral(L, "__gc");
-                            lua_pushcfunction(L, lua_dbgc);
-                            lua_rawset(L, -3);
-                            lua_setmetatable(L, -2);
+                        /* Create metatable for __gc function */
+                        luaL_newmetatable(L, "pLua.dbopen");
+                        lua_pushliteral(L, "__gc");
+                        lua_pushcfunction(L, lua_dbgc);
+                        lua_rawset(L, -3);
+                        lua_setmetatable(L, -2);
 
-                            /* Register db functions */
-                            luaL_register(L, NULL, db_methods);
+                        /* Register db functions */
+                        luaL_register(L, NULL, db_methods);
 
-                            /* lua_newuserdata() */
-                            lua_pushlightuserdata(L, db);
-                            lua_rawseti(L, -2, 0);
-                            return (1);
-                        } else {
-                            lua_pushnil(L);
-                            if (error) {
-                                lua_pushstring(L, error);
-                                if (pool) apr_pool_destroy(pool);
-                                return (2);
-                            }
-
+                        /* lua_newuserdata() */
+                        lua_pushlightuserdata(L, db);
+                        lua_rawseti(L, -2, 0);
+                        return (1);
+                    } else {
+                        lua_pushnil(L);
+                        if (error) {
+                            lua_pushstring(L, error);
                             if (pool) apr_pool_destroy(pool);
-                            return (1);
+                            return (2);
                         }
-                    }
 
-                    if (pool) apr_pool_clear(pool);
-                    if (pool) apr_pool_destroy(pool);
-                    lua_pushnil(L);
-                    lua_pushliteral(L, "No database connection string was specified.");
-                    return (2);
-                } else {
-                    if (pool) apr_pool_clear(pool);
-                    if (pool) apr_pool_destroy(pool);
-                    lua_pushnil(thread->state);
-                    lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
-                    lua_pushinteger(thread->state, rc);
-                    return (3);
+                        if (pool) apr_pool_destroy(pool);
+                        return (1);
+                    }
                 }
+
+                if (pool) apr_pool_clear(pool);
+                if (pool) apr_pool_destroy(pool);
+                lua_pushnil(L);
+                lua_pushliteral(L, "No database connection string was specified.");
+                return (2);
+            } else {
+                if (pool) apr_pool_clear(pool);
+                if (pool) apr_pool_destroy(pool);
+                lua_pushnil(thread->state);
+                lua_pushfstring(thread->state, "The database driver for '%s' could not be found!", type);
+                lua_pushinteger(thread->state, rc);
+                return (3);
             }
+        }
+
         lua_pushnil(thread->state);
         return (1);
     }
-    return 0;
+
+    return (0);
 }
 
 /*
@@ -1203,6 +1219,7 @@ static int lua_header(lua_State *L) {
         lua_settop(L, 0);
         apr_table_set(thread->r->headers_out, key, value);
     }
+
     return (0);
 }
 
@@ -1401,7 +1418,7 @@ static int lua_getEnv(lua_State *L) {
         apr_table_entry_t   *e = 0;
         char                *pwd = getPWD(thread);
         char                luaVersion[32];
-        const char *x;
+        const char          *x;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         sprintf(luaVersion, "%u.%u", (LUA_VERSION_NUM / 100), (LUA_VERSION_NUM) % (LUA_VERSION_NUM / 100));
@@ -1460,7 +1477,7 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "pLua-Disabled-Libraries");
         lua_pushstring(thread->state, LUA_IGNORE);
         lua_rawset(L, -3);
-        
+
         /* Apache HTTP specific data */
         lua_pushstring(thread->state, "Request-Time");
         lua_pushinteger(thread->state, thread->r->request_time);
@@ -1475,7 +1492,6 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, thread->r->connection->remote_ip);
 #endif
         lua_rawset(L, -3);
-        
         lua_pushstring(thread->state, "Request-Method");
         lua_pushstring(thread->state, thread->r->method);
         lua_rawset(L, -3);
@@ -1506,7 +1522,6 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Server-Banner");
         lua_pushstring(thread->state, ap_get_server_banner());
         lua_rawset(L, -3);
-
         return (1);
     }
 
@@ -1932,19 +1947,25 @@ static void register_lua_functions(lua_State *L) {
 
 /*
  =======================================================================================================================
- *  pLua_openlibs (lua_State *L): Opens all standard libraries except those forbidden by the pLuaIgnoreLibrary directive
+    pLua_openlibs (lua_State *L): Opens all standard libraries except those forbidden by the pLuaIgnoreLibrary
+    directive
  =======================================================================================================================
  */
-LUALIB_API void                 pLua_openlibs (lua_State *L) {
-    const luaL_Reg *lib = plualibs;
+LUALIB_API void pLua_openlibs(lua_State *L) {
+
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    const luaL_Reg  *lib = plualibs;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
     for (; lib->func; lib++) {
         if (!strlen(lib->name) || !strstr(LUA_IGNORE, lib->name)) {
             lua_pushcfunction(L, lib->func);
             lua_pushstring(L, lib->name);
             lua_call(L, 1, 0);
-       }
+        }
     }
 }
+
 /*
  =======================================================================================================================
     Creates and initializes a new Lua state @param thread the lua_thread pointer to use @param x The index of the state
@@ -1963,7 +1984,6 @@ void pLua_create_state(lua_thread *thread, int x) {
     thread->state = luaL_newstate();
     thread->sessions = 0;
     L = (lua_State *) thread->state;
-   
     pLua_openlibs(L);
     register_lua_functions(L);
 
@@ -2888,8 +2908,6 @@ const char *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg) {
     return (NULL);
 }
 
-
-
 /*
  =======================================================================================================================
     pLuaMemoryLimit N: Sets the memory limit (in kb) for each state.
@@ -2905,12 +2923,10 @@ const char *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg) {
     return (NULL);
 }
 
-
-
 /*
  =======================================================================================================================
-    pLuaIgnoreLibrary lib: Ignores one or more libraries from being loaded into the Lua state.
- *  This is useful for sandboxing Lua.
+    pLuaIgnoreLibrary lib: Ignores one or more libraries from being loaded into the Lua state. This is useful for
+    sandboxing Lua.
  =======================================================================================================================
  */
 const char *pLua_set_Ignore(cmd_parms *cmd, void *cfg, const char *arg) {
