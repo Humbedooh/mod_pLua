@@ -1441,6 +1441,9 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "pLua-Files");
         lua_pushinteger(thread->state, LUA_FILES);
         lua_rawset(L, -3);
+        lua_pushstring(thread->state, "pLua-Memory-Limit");
+        lua_pushinteger(thread->state, LUA_MEM_LIMIT);
+        lua_rawset(L, -3);
         lua_pushstring(thread->state, "pLua-Version");
         lua_pushinteger(thread->state, PLUA_VERSION);
         lua_rawset(L, -3);
