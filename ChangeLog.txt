@@ -1,3 +1,6 @@
+0.46:
+- Added the pLuaMemoryLimit directive for setting a memory limit (in kb) for each Lua state
+
 0.45:
 - Fixed a bug (presumably) where db:close() could cause a segfault when using a mod_dbd handle
 - Removed the forced output flushing at 20KB data, as it doesn't seem to be needed

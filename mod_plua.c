@@ -111,7 +111,7 @@ static int plua_handler(request_rec *r) {
         /* Set up the lua_thread struct and change to the current directory. */
         L = l->state;
         l->r = r;
-        l->written = 0;
+        l->debugging = 0;
         l->errorLevel = LUA_PERROR;
 #ifndef _WIN32
         rc = chdir(getPWD(l));
@@ -158,9 +158,10 @@ static int plua_handler(request_rec *r) {
             l->typeSet = 0;
             rc = 0;
 
-            /* Set timeout if applicable and run the compiled code. */
-            if (LUA_TIMEOUT > 0) {
+            /* If script timeout or memory limit is in effect, attach the debug hook for monitoring. */
+            if (LUA_TIMEOUT > 0 || LUA_MEM_LIMIT > 0) {
                 l->runTime = time(0);
+                l->debugging = 1;
                 lua_sethook(L, pLua_debug_hook, LUA_MASKLINE | LUA_MASKCOUNT, 1);
             }
 
@@ -178,7 +179,7 @@ static int plua_handler(request_rec *r) {
             }
 
             /* Remove the debug hook if set */
-            if (LUA_TIMEOUT > 0) {
+            if (l->debugging) {
                 lua_sethook(L, pLua_debug_hook, 0, 0);
             }
         }
@@ -364,14 +365,30 @@ static void pLua_debug_hook(lua_State *L, lua_Debug *ar) {
 
     then++;
     if ((then % 200) == 0) {
+        
+        /* Script timeout testing */
+        if (LUA_TIMEOUT > 0) {
+            /*~~~~~~~~~~~~~~~~~~*/
+            time_t  now = time(0);
+            /*~~~~~~~~~~~~~~~~~~*/
 
-        /*~~~~~~~~~~~~~~~~~~*/
-        time_t  now = time(0);
-        /*~~~~~~~~~~~~~~~~~~*/
-
-        thread = pLua_get_thread(L);
-        if (thread && (now - thread->runTime) > LUA_TIMEOUT)
-            luaL_error(L, "The script took too long to execute (timed out)!\n", "the script...somewhere!");
+            thread = pLua_get_thread(L);
+            if (thread && (now - thread->runTime) > LUA_TIMEOUT)
+                luaL_error(L, "The script took too long to execute (timed out)!\n", "the script...somewhere!");
+        }
+        
+        /* Memory limit testing */
+        if (LUA_MEM_LIMIT > 0 ) {
+            int kb = lua_gc(L, LUA_GCCOUNT, 0);
+            
+            // If, at first, we've hit the limit, attempt to GC our way out of it.
+            if ( kb > LUA_MEM_LIMIT ) {
+                lua_gc(L, LUA_GCCOLLECT, 0);
+                kb = lua_gc(L, LUA_GCCOUNT, 0);
+                // If this didn't work, it's time to b0rk
+                if ( kb > LUA_MEM_LIMIT ) luaL_error(L, "Memory limit reached!\n", "the script...somewhere!");
+            }
+        }
     }
 }
 
@@ -2846,5 +2863,22 @@ const char *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg) {
     /*~~~~~~~~~~~~~~*/
 
     LUA_SHORTHAND = x > 0 ? x : 0;
+    return (NULL);
+}
+
+
+
+/*
+ =======================================================================================================================
+    pLuaMemoryLimit N: Sets the memory limit (in kb) for each state.
+ =======================================================================================================================
+ */
+const char *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
+    int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
+    LUA_MEM_LIMIT = x > 0 ? x : 0;
     return (NULL);
 }
