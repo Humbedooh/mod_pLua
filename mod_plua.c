@@ -1959,8 +1959,9 @@ void pLua_create_state(lua_thread *thread, int x) {
     thread->sessions = 0;
     L = (lua_State *) thread->state;
    
-    pLua_openlibs(L);
     register_lua_functions(L);
+    pLua_openlibs(L);
+    
 
     /* Push the lua_thread struct onto the Lua registry */
     lua_pushlightuserdata(L, thread);
