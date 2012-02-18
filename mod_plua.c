@@ -1945,7 +1945,7 @@ void pLua_create_state(lua_thread *thread, int x) {
     thread->sessions = 0;
     L = (lua_State *) thread->state;
     luaL_openlibs(L);
-    luaopen_debug(L);
+    if (LUA_DEBUG) luaopen_debug(L);
     register_lua_functions(L);
 
     /* Push the lua_thread struct onto the Lua registry */
@@ -2883,5 +2883,22 @@ const char *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg) {
     /*~~~~~~~~~~~~~~*/
 
     LUA_MEM_LIMIT = x > 0 ? x : 0;
+    return (NULL);
+}
+
+
+
+/*
+ =======================================================================================================================
+    pLuaDebug N: Enables/disables the Lua debug library.
+ =======================================================================================================================
+ */
+const char *pLua_set_Debug(cmd_parms *cmd, void *cfg, const char *arg) {
+
+    /*~~~~~~~~~~~~~~*/
+    int x = atoi(arg);
+    /*~~~~~~~~~~~~~~*/
+
+    LUA_DEBUG = x > 0 ? x : 0;
     return (NULL);
 }
