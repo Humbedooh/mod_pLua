@@ -1950,12 +1950,12 @@ void pLua_create_state(lua_thread *thread, int x) {
     L = (lua_State *) thread->state;
     luaopen_base(L);
     luaopen_table(L);
-    if (!memmem(LUA_IGNORE, 256, "io", 2))      luaopen_io(L);
+    luaopen_io(L);
     luaopen_string(L);
     luaopen_math(L);
-    if (!memmem(LUA_IGNORE, 256, "package", 7)) luaopen_package(L);
-    if (!memmem(LUA_IGNORE, 256, "debug", 5))   luaopen_debug(L);
-    if (!memmem(LUA_IGNORE, 256, "os", 2))      luaopen_os(L);
+    luaopen_package(L);
+    luaopen_debug(L);
+    luaopen_os(L);
     register_lua_functions(L);
 
     /* Push the lua_thread struct onto the Lua registry */
