@@ -1930,6 +1930,14 @@ static void register_lua_functions(lua_State *L) {
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
+LUALIB_API void                 pLua_openlibs (lua_State *L) {
+  const luaL_Reg *lib = plualibs;
+  for (; lib->func; lib++) {
+    lua_pushcfunction(L, lib->func);
+    lua_pushstring(L, lib->name);
+    lua_call(L, 1, 0);
+  }
+}
 /*
  =======================================================================================================================
     Creates and initializes a new Lua state @param thread the lua_thread pointer to use @param x The index of the state
@@ -1948,19 +1956,8 @@ void pLua_create_state(lua_thread *thread, int x) {
     thread->state = luaL_newstate();
     thread->sessions = 0;
     L = (lua_State *) thread->state;
-    luaopen_base(L);
-    luaopen_package(L);
-    luaopen_table(L);
-    luaopen_io(L);
-    luaopen_os(L);
-    
-    luaopen_string(L);
-    luaopen_math(L);
-    
-    luaopen_debug(L);
-    
-    
-    //luaL_openlibs(L); -- If I use this instead, it doesn't stall.
+   
+    pLua_openlibs(L); -- If I use this instead, it doesn't stall.
     register_lua_functions(L);
 
     /* Push the lua_thread struct onto the Lua registry */
