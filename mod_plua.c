@@ -1957,7 +1957,7 @@ void pLua_create_state(lua_thread *thread, int x) {
     thread->sessions = 0;
     L = (lua_State *) thread->state;
    
-    pLua_openlibs(L); -- If I use this instead, it doesn't stall.
+    pLua_openlibs(L);
     register_lua_functions(L);
 
     /* Push the lua_thread struct onto the Lua registry */
