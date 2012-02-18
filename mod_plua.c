@@ -1140,10 +1140,10 @@ static int lua_dbopen(lua_State *L) {
             }
         } else {
             luaL_checktype(L, 2, LUA_TSTRING);
-            arguments = lua_tostring(L, 2);
-            lua_settop(L, 0);
             rc = apr_dbd_get_driver(db->pool, type, &db->driver);
             if (rc == APR_SUCCESS) {
+                arguments = lua_tostring(L, 2);
+                lua_settop(L, 0);
                 if (strlen(arguments)) {
                     rc = apr_dbd_open_ex(db->driver, db->pool, arguments, &db->handle, &error);
                     if (rc == APR_SUCCESS) {
