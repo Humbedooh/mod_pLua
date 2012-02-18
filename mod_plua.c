@@ -24,7 +24,7 @@ static void register_hooks(apr_pool_t *pool) {
     for (x = 0; x < PLUA_RAW_TYPES; x++) {
         pLua_rawTypes[x] = (char *) apr_pcalloc(pool, 64);
     }
-    //memset(LUA_IGNORE, 0, 256);
+    memset(LUA_IGNORE, 0, 256);
 
     /* Hook initialization of global variables to the child init stage */
     ap_hook_child_init(module_init, NULL, NULL, APR_HOOK_MIDDLE);
@@ -1948,7 +1948,14 @@ void pLua_create_state(lua_thread *thread, int x) {
     thread->state = luaL_newstate();
     thread->sessions = 0;
     L = (lua_State *) thread->state;
-    
+    /*luaopen_base(L);
+    luaopen_table(L);
+    if (!memmem(LUA_IGNORE, 256, "io", 2))      luaopen_io(L);
+    luaopen_string(L);
+    luaopen_math(L);
+    if (!memmem(LUA_IGNORE, 256, "package", 7)) luaopen_package(L);
+    if (!memmem(LUA_IGNORE, 256, "debug", 5))   luaopen_debug(L);
+    if (!memmem(LUA_IGNORE, 256, "os", 2))      luaopen_os(L);*/
     luaL_openlibs(L);
     register_lua_functions(L);
 
