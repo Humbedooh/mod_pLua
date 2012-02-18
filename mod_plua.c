@@ -1953,11 +1953,10 @@ void pLua_create_state(lua_thread *thread, int x) {
     
     luaopen_string(L);
     luaopen_math(L);
-    if (!memmem(LUA_IGNORE, 255, "package", 7)) luaopen_package(L);
-    //luaopen_io(L);
-    
-    if (!memmem(LUA_IGNORE, 255, "debug", 5))   luaopen_debug(L);
-    if (!memmem(LUA_IGNORE, 255, "os", 2))      luaopen_os(L);
+    luaopen_package(L);
+    luaopen_io(L);
+    luaopen_debug(L);
+    luaopen_os(L);
     //luaL_openlibs(L);
     register_lua_functions(L);
 
