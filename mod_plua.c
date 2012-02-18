@@ -1139,9 +1139,9 @@ static int lua_dbopen(lua_State *L) {
                 return (2);
             }
         } else {
-            luaL_checktype(L, 2, LUA_TSTRING);
             rc = apr_dbd_get_driver(db->pool, type, &db->driver);
             if (rc == APR_SUCCESS) {
+                luaL_checktype(L, 2, LUA_TSTRING);
                 arguments = lua_tostring(L, 2);
                 lua_settop(L, 0);
                 if (strlen(arguments)) {
@@ -1237,10 +1237,7 @@ static int lua_flush(lua_State *L) {
     /*~~~~~~~~~~~~~~~~*/
 
     thread = pLua_get_thread(L);
-    if (thread) {
-        ap_rflush(thread->r);
-    }
-
+    if (thread) ap_rflush(thread->r);
     return (0);
 }
 
