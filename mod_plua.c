@@ -1416,7 +1416,6 @@ static int lua_getEnv(lua_State *L) {
         apr_table_entry_t   *e = 0;
         char                *pwd = getPWD(thread);
         char                luaVersion[32];
-        const char          *x;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         sprintf(luaVersion, "%u.%u", (LUA_VERSION_NUM / 100), (LUA_VERSION_NUM) % (LUA_VERSION_NUM / 100));
@@ -1956,11 +1955,11 @@ LUALIB_API void pLua_openlibs(lua_State *L) {
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     for (; lib->func; lib++) {
-        if (!strlen(lib->name) || !strstr(LUA_IGNORE, lib->name)) {
+     //   if (!strlen(lib->name) || !strstr(LUA_IGNORE, lib->name)) {
             lua_pushcfunction(L, lib->func);
             lua_pushstring(L, lib->name);
             lua_call(L, 1, 0);
-        }
+    //    }
     }
 }
 
@@ -1970,7 +1969,7 @@ LUALIB_API void pLua_openlibs(lua_State *L) {
     in the grand scheme
  =======================================================================================================================
  */
-void pLua_create_state(lua_thread *thread, int x) {
+void pLua_create_state(lua_thread *thread) {
 
     /*~~~~~~~~~~~*/
     lua_State   *L;
@@ -1982,7 +1981,12 @@ void pLua_create_state(lua_thread *thread, int x) {
     thread->state = luaL_newstate();
     thread->sessions = 0;
     L = (lua_State *) thread->state;
+#ifndef _WIN32
     pLua_openlibs(L);
+#else
+    if (LUA_VERSION_NUM > 501) luaL_openlibs(L);
+    else pLua_openlibs(L);
+#endif
     register_lua_functions(L);
 
     /* Push the lua_thread struct onto the Lua registry */
@@ -2029,7 +2033,7 @@ void pLua_init_states(lua_domain *domain) {
     for (y = 0; y < LUA_STATES; y++) {
         if (!domain->states[y].state) {
             domain->states[y].files = apr_pcalloc(domain->pool, (LUA_FILES + 1) * sizeof(pLua_files));
-            pLua_create_state(&domain->states[y], y);
+            pLua_create_state(&domain->states[y]);
             domain->states[y].bigPool = domain->pool;
             domain->states[y].domain = (void *) domain;
         }
@@ -2191,7 +2195,7 @@ void lua_release_state(lua_thread *thread) {
     /* Check if state needs restarting */
     if (thread->sessions >= LUA_RUNS) {
         lua_close(thread->state);
-        pLua_create_state(thread, 1);
+        pLua_create_state(thread);
     }
 
     /* Remove the thread from the backup state list */

@@ -460,7 +460,7 @@ static const luaL_reg           String_methods[] =
     { "encode64", lua_b64enc },
     { 0, 0 }
 };
-static const luaL_Reg           plualibs[] =
+static const luaL_reg           plualibs[] =
 {
     { "", luaopen_base },
     { LUA_LOADLIBNAME, luaopen_package },
