@@ -1100,15 +1100,14 @@ static int lua_dbopen(lua_State *L) {
         db->type = 0;   /* 0 for regular, 1 for mod_dbd */
         apr_dbd_init(pool);
         luaL_checktype(L, 1, LUA_TSTRING);
-        luaL_checktype(L, 2, LUA_TSTRING);
         type = lua_tostring(L, 1);
-        arguments = lua_tostring(L, 2);
-        lua_settop(L, 0);
+        
 
         /*
          * apr_dbd_init(thread->r->pool);
          */
         if (!strcmp(type, "mod_dbd")) {
+            lua_settop(L, 0);
             db->type = 1;
 #if (_WITH_MOD_DBD == 1)
             dbdhandle = ap_dbd_acquire(thread->r);
@@ -1140,6 +1139,9 @@ static int lua_dbopen(lua_State *L) {
                 return (2);
             }
         } else {
+            luaL_checktype(L, 2, LUA_TSTRING);
+            arguments = lua_tostring(L, 2);
+            lua_settop(L, 0);
             rc = apr_dbd_get_driver(db->pool, type, &db->driver);
             if (rc == APR_SUCCESS) {
                 if (strlen(arguments)) {
