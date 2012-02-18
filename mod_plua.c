@@ -124,6 +124,7 @@ static int plua_handler(request_rec *r) {
         /* Set default return code to OK (200-ish) and reset the parse counter */
         l->returnCode = OK;
         l->parsedPost = 0;
+        ap_set_content_type(r, "text/html");
 
         /* Check if we want to compile this file as a plain lua file or not */
         xEnd = r->filename;
@@ -175,10 +176,7 @@ static int plua_handler(request_rec *r) {
                 rc = l->returnCode;
 
                 /* No error, everything went fine, set up the content type if needed and return OK. */
-            } else {
-                if (l->typeSet == 0) ap_set_content_type(r, "text/html");
-                rc = l->returnCode;
-            }
+            } else rc = l->returnCode;
 
             /* Remove the debug hook if set */
             if (l->debugging) {
