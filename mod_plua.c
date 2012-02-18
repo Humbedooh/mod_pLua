@@ -2171,7 +2171,7 @@ void lua_release_state(lua_thread *thread) {
     if (thread->sessions % 5) lua_gc(thread->state, LUA_GCSTEP, 1);
 
     /* Check if state needs restarting */
-    if (thread->sessions > LUA_RUNS) {
+    if (thread->sessions >= LUA_RUNS) {
         lua_close(thread->state);
         pLua_create_state(thread, 1);
     }
