@@ -1312,6 +1312,50 @@ static int lua_echo(lua_State *L) {
 
 /*
  =======================================================================================================================
+    lua_explode(lua_State *L): string.explode(string, delimiter): chops up a string into chunks
+ =======================================================================================================================
+ */
+static int lua_explode(lua_State *L) {
+    const char* string;
+    const char* delimiter;
+    char *temp = 0;
+    char *current = 0;
+    char *previous = 0;
+    size_t at,size;
+    lua_thread* thread;
+    int i = 0;
+    
+    thread = pLua_get_thread(L);
+    if (thread) {
+        luaL_checktype(L, 1, LUA_TSTRING);
+        luaL_checktype(L, 2, LUA_TSTRING);
+        string = lua_tolstring(L, 1, &size);
+        previous = string;
+        if (size > 0) {
+            temp = (char*) apr_pcalloc(thread->r->pool, size);
+            lua_newtable(L);
+            current = strstr(string, delimiter);
+            while ( current ) {
+                i++;
+                lua_pushinteger(L, i);
+                lua_pushlstring(L, previous, (current - previous));
+                lua_rawset(L, -3);
+                previous = current;
+            }
+            if ( (current - string) < size) {
+                lua_pushinteger(L, i);
+                lua_pushlstring(L, current, (current - string));
+                lua_rawset(L, -3);
+            }
+        }
+        return (1);
+    }
+    return (0);
+}
+
+
+/*
+ =======================================================================================================================
     lua_setContentType(lua_State *L): setContentType(type): Sets the content type of the returned output.
  =======================================================================================================================
  */
