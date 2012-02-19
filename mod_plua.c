@@ -1250,7 +1250,7 @@ static int lua_sleep(lua_State *L) {
 
     luaL_checktype(L, 1, LUA_TNUMBER);
     n = lua_tonumber(L, 1);
-    n = ((LUA_TIMEOUT > 0) && (LUA_TIMEOUT < n)) ? LUA_TIMEOUT : n;
+    n = ((LUA_TIMEOUT > 0) && (LUA_TIMEOUT < n && n > 0)) ? LUA_TIMEOUT : n;
     apr_sleep(n * 1000000);
     return (0);
 }
@@ -1571,13 +1571,11 @@ static int lua_sendfile(lua_State *L)
 #if __WIN
 #   define open    _open
 #endif
-
     /*~~~~~~~~~~~~~~~~~~*/
     struct stat fileinfo;
     const char  *filename;
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~~~*/
-
     luaL_checktype(L, 1, LUA_TSTRING);
     filename = lua_tostring(L, 1);
     lua_settop(L, 0);
