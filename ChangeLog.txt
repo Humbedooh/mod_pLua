@@ -1,3 +1,6 @@
+0.48:
+- Added file.send(filename) for sending static files using the internal sendfile mechanism
+
 0.47:
 - dbopen() now only requires one parameter if opening a mod_dbd connection
 - Content type is now assumed to be text/html by default
