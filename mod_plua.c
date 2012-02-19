@@ -1320,7 +1320,7 @@ static int lua_explode(lua_State *L) {
     const char* delimiter;
     char *current = 0;
     const char *previous = 0;
-    size_t tmpsize,size;
+    size_t tmpsize,size,dsize;
     lua_thread* thread;
     int i = 0;
     
@@ -1329,9 +1329,9 @@ static int lua_explode(lua_State *L) {
         luaL_checktype(L, 1, LUA_TSTRING);
         luaL_checktype(L, 2, LUA_TSTRING);
         string = lua_tolstring(L, 1, &size);
-        delimiter = lua_tostring(L, 2);
+        delimiter = lua_tolstring(L, 2, &dsize);
         previous = string;
-        if (size > 0) {
+        if (size > 0 && dsize > 0) {
             lua_newtable(L);
             current = strstr(string, delimiter);
             while ( current ) {
@@ -1339,13 +1339,15 @@ static int lua_explode(lua_State *L) {
                 tmpsize = current - previous;
                 lua_pushlstring(L, previous, tmpsize);
                 lua_rawset(L, -3);
-                previous = current;
-                current = strstr(current + 1, delimiter);
+                previous = current + dsize;
+                current = strstr(previous, delimiter);
             }
             tmpsize = string - previous;
-            lua_pushinteger(L, ++i);
-            lua_pushlstring(L, previous, tmpsize);
-            lua_rawset(L, -3);
+            if ( tmpsize > 0) {
+            //    lua_pushinteger(L, ++i);
+            //    lua_pushlstring(L, previous, tmpsize);
+            //    lua_rawset(L, -3);
+            }
         }
         return (1);
     }
