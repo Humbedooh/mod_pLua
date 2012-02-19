@@ -1267,7 +1267,8 @@ static int lua_echo(lua_State *L) {
     const char  *el;
     lua_thread  *thread;
     int         y,
-                z;
+                z,
+                t;
     size_t      x;
     /*~~~~~~~~~~~~~~~~*/
 
@@ -1276,13 +1277,25 @@ static int lua_echo(lua_State *L) {
         z = lua_gettop(L);
         for (y = 1; y < z; y++) {
             x = 0;
-            if (PLUA_LSTRING) {
-                el = lua_tolstring(L, y, &x);
-                if (el && x > 0) {
-                    ap_rwrite(el, x, thread->r);
+            t = lua_type(L, y);
+            if (t == LUA_TNUMBER || t == LUA_TSTRING) {
+                if (PLUA_LSTRING) {
+                    el = lua_tolstring(L, y, &x);
+                    if (el && x > 0) {
+                        ap_rwrite(el, x, thread->r);
+                    }
                 }
-            } else {
-                el = lua_tostring(L, y);
+                else {
+                    el = lua_tostring(L, y);
+                    if (el) ap_rputs(el, thread->r);
+                }
+            }
+            else {
+                if ( t == LUA_TBOOLEAN ) el = (lua_toboolean(L, y)) ? "true" : "false";
+                if ( t == LUA_TFUNCTION ) el = "function";
+                if ( t == LUA_TTABLE ) el = "table";
+                if ( t == LUA_TUSERDATA || t == LUA_TLIGHTUSERDATA ) el = "userdata";
+                if ( t == LUA_TNIL ) el = "nil";
                 if (el) ap_rputs(el, thread->r);
             }
         }
