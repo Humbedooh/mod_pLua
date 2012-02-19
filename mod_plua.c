@@ -2982,6 +2982,6 @@ const char *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg) {
  =======================================================================================================================
  */
 const char *pLua_set_Ignore(cmd_parms *cmd, void *cfg, const char *arg) {
-    sscanf(arg, "%255", LUA_IGNORE);
+    sscanf(arg, "%255c", LUA_IGNORE);
     return (NULL);
 }
