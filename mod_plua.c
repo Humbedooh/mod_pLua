@@ -1331,8 +1331,8 @@ static int lua_explode(lua_State *L) {
         string = lua_tolstring(L, 1, &size);
         delimiter = lua_tolstring(L, 2, &dsize);
         previous = string;
+        lua_newtable(L);
         if (size > 0 && dsize > 0) {
-            lua_newtable(L);
             current = strstr(string, delimiter);
             while ( current ) {
                 lua_pushinteger(L, ++i);
@@ -1346,6 +1346,15 @@ static int lua_explode(lua_State *L) {
             if ( tmpsize > 0) {
                 lua_pushinteger(L, ++i);
                 lua_pushlstring(L, previous, tmpsize);
+                lua_rawset(L, -3);
+            }
+        }
+        if (size > 0 && dsize == 0) {
+            size_t at;
+            i = 0;
+            for (at = 0; at < size; at++) {
+                lua_pushinteger(L, ++i);
+                lua_pushlstring(L, string[at], 1);
                 lua_rawset(L, -3);
             }
         }
