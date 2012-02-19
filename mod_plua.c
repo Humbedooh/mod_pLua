@@ -1264,8 +1264,8 @@ static int lua_sleep(lua_State *L) {
 static int lua_echo(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~*/
-    const char  *el;
-    char string[36];
+    const char  *el; 
+    char string[36]; // Used for printing out tables, functions and userdatas
     lua_thread  *thread;
     int         y,
                 z,
@@ -2982,6 +2982,6 @@ const char *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg) {
  =======================================================================================================================
  */
 const char *pLua_set_Ignore(cmd_parms *cmd, void *cfg, const char *arg) {
-    sprintf(LUA_IGNORE, arg);
+    sscanf(arg, "%255", LUA_IGNORE);
     return (NULL);
 }
