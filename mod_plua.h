@@ -10,7 +10,7 @@
 #   define LINUX   2
 #   define _LARGEFILE64_SOURCE
 #   define LUA_COMPAT_MODULE   1
-#   define PLUA_VERSION        47
+#   define PLUA_VERSION        48
 #   define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #   define MULTIPART_ENCTYPE   "multipart/form-data"
 #   define MAX_VARS            500  /* Maximum number of HTTP GET/POST variables */
@@ -37,7 +37,6 @@
 #   include <http_protocol.h>
 #   include <http_config.h>
 #   include <http_log.h>
-#   include <mod_log_config.h>
 #   ifndef _WIN32
 #      include <unistd.h>
 #      include <pthread.h>
@@ -359,7 +358,7 @@ static int          lua_parse_post(lua_State *L);
 static int          lua_parse_get(lua_State *L);
 static int          lua_includeFile(lua_State *L);
 static void         register_lua_functions(lua_State *L);
-void                lua_init_state(lua_thread *thread, int x);
+void                pLua_create_state(lua_thread *thread);
 void                pLua_init_states(lua_domain *domain);
 lua_thread          *lua_acquire_state(request_rec *r, const char *hostname);
 void                lua_release_state(lua_thread *thread);
