@@ -2,6 +2,7 @@
 - Added file.send(filename) for sending static files using the internal sendfile mechanism
 - Calling sleep with a negative number will now default to sleeping for 1 second
 - print() will now output the values of booleans and nils, as well as refs to tables, userdata and functions
+- Added string.explode(string, delimiter) for splitting up strings into chunks
 
 0.47:
 - dbopen() now only requires one parameter if opening a mod_dbd connection
