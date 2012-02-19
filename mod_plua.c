@@ -1354,7 +1354,7 @@ static int lua_explode(lua_State *L) {
             i = 0;
             for (at = 0; at < size; at++) {
                 lua_pushinteger(L, ++i);
-                lua_pushlstring(L, string[at], 1);
+                lua_pushlstring(L, string + at, 1);
                 lua_rawset(L, -3);
             }
         }
