@@ -1321,7 +1321,7 @@ static int lua_explode(lua_State *L) {
     char *temp = 0;
     char *current = 0;
     const char *previous = 0;
-    size_t at,size;
+    size_t tmpsize,size;
     lua_thread* thread;
     int i = 0;
     
@@ -1330,21 +1330,24 @@ static int lua_explode(lua_State *L) {
         luaL_checktype(L, 1, LUA_TSTRING);
         luaL_checktype(L, 2, LUA_TSTRING);
         string = lua_tolstring(L, 1, &size);
+        delimiter = lua_tostring(L, 2);
         previous = string;
         if (size > 0) {
             temp = (char*) apr_pcalloc(thread->r->pool, size);
             lua_newtable(L);
             current = strstr(string, delimiter);
             while ( current ) {
-                i++;
-                lua_pushinteger(L, i);
-                lua_pushlstring(L, previous, (current - previous));
+                lua_pushinteger(L, ++i);
+                tmpsize = current - previous;
+                lua_pushlstring(L, previous, tmpsize);
                 lua_rawset(L, -3);
                 previous = current;
+                current = strstr(string, delimiter);
             }
             if ( (current - string) < size) {
-                lua_pushinteger(L, i);
-                lua_pushlstring(L, current, (current - string));
+                tmpsize = current - previous;
+                lua_pushinteger(L, ++i);
+                lua_pushlstring(L, current, tmpsize);
                 lua_rawset(L, -3);
             }
         }
