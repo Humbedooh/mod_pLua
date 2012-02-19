@@ -453,12 +453,11 @@ static const luaL_reg           Global_methods[] =
     { "showErrors", lua_setErrorLevel },
     { 0, 0 }
 };
-static const luaL_reg           String_methods[] =
-{
-    { "SHA256", lua_sha256 },
-    { "decode64", lua_b64dec },
-    { "encode64", lua_b64enc },
-    { 0, 0 }
+static const luaL_reg           String_methods[] = { 
+    { "SHA256", lua_sha256 }, 
+    { "decode64", lua_b64dec }, 
+    { "encode64", lua_b64enc }, 
+    { 0, 0 } 
 };
 static const luaL_reg           plualibs[] =
 {

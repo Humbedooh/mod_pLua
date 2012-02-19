@@ -1,6 +1,6 @@
 /*
  * File: main.c Author: Humbedooh Created on 4. january 2012, 23:30 ;
- * Include the header
+ * Include the heade
  */
 #include "mod_plua.h"
 
@@ -84,7 +84,6 @@ static int plua_handler(request_rec *r) {
     /*~~~~~~~~~~~~~~~~~~~*/
     int     exists = 1;
     char    compileRaw = 0;
-    int     UID = 0;
     /*~~~~~~~~~~~~~~~~~~~*/
 
     /* Check if we are being called, and that the request method is one we can handle. */
@@ -1099,7 +1098,6 @@ static int lua_dbopen(lua_State *L) {
         apr_dbd_init(pool);
         luaL_checktype(L, 1, LUA_TSTRING);
         type = lua_tostring(L, 1);
-        
 
         /*
          * apr_dbd_init(thread->r->pool);
@@ -1246,9 +1244,9 @@ static int lua_flush(lua_State *L) {
  */
 static int lua_sleep(lua_State *L) {
 
-    /*~~~~~~*/
-    lua_Number n = 1;
-    /*~~~~~~*/
+    /*~~~~~~~~~~~~~~*/
+    lua_Number  n = 1;
+    /*~~~~~~~~~~~~~~*/
 
     luaL_checktype(L, 1, LUA_TNUMBER);
     n = lua_tonumber(L, 1);
@@ -1954,17 +1952,17 @@ LUALIB_API void pLua_openlibs(lua_State *L) {
     const luaL_Reg  *lib = plualibs;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-
     for (; lib->func; lib++) {
-        if (!strlen(lib->name) || !strstr(LUA_IGNORE, lib->name)) {
-            #if LUA_VERSION_NUM > 501
+        if (!strlen(lib->name) || !strstr(LUA_IGNORE, lib->name))
+        {
+#if LUA_VERSION_NUM > 501
             luaL_requiref(L, lib->name, lib->func, 1);
             lua_pop(L, 1);
-            #else
+#else
             lua_pushcfunction(L, lib->func);
             lua_pushstring(L, lib->name);
             lua_call(L, 1, 0);
-            #endif
+#endif
         }
     }
 }
