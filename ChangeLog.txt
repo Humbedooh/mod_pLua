@@ -1,7 +1,8 @@
 0.47:
 - dbopen() now only requires one parameter if opening a mod_dbd connection
 - Content type is now assumed to be text/html by default
-- sleep() now accepts floating point values
+- sleep() now accepts floating point values on UNIX systems
+- Added a temporary kludge to Lua 5.2 on Windows platforms, as it doesn't like the new pLuaIgnoreLibrary directive
 
 0.46:
 - Added the pLuaMemoryLimit directive for setting a memory limit (in kb) for each Lua state

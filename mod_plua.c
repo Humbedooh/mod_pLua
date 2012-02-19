@@ -1954,12 +1954,18 @@ LUALIB_API void pLua_openlibs(lua_State *L) {
     const luaL_Reg  *lib = plualibs;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+
     for (; lib->func; lib++) {
-     //   if (!strlen(lib->name) || !strstr(LUA_IGNORE, lib->name)) {
+        if (!strlen(lib->name) || !strstr(LUA_IGNORE, lib->name)) {
+            #if LUA_VERSION_NUM > 501
+            luaL_requiref(L, lib->name, lib->func, 1);
+            lua_pop(L, 1);
+            #else
             lua_pushcfunction(L, lib->func);
             lua_pushstring(L, lib->name);
             lua_call(L, 1, 0);
-    //    }
+            #endif
+        }
     }
 }
 
@@ -1984,7 +1990,7 @@ void pLua_create_state(lua_thread *thread) {
 #ifndef _WIN32
     pLua_openlibs(L);
 #else
-    if (LUA_VERSION_NUM > 501) luaL_openlibs(L);
+    if (LUA_VERSION_NUM > 504) luaL_openlibs(L);
     else pLua_openlibs(L);
 #endif
     register_lua_functions(L);
