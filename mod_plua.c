@@ -1318,7 +1318,6 @@ static int lua_echo(lua_State *L) {
 static int lua_explode(lua_State *L) {
     const char* string;
     const char* delimiter;
-    char *temp = 0;
     char *current = 0;
     const char *previous = 0;
     size_t tmpsize,size;
@@ -1333,7 +1332,6 @@ static int lua_explode(lua_State *L) {
         delimiter = lua_tostring(L, 2);
         previous = string;
         if (size > 0) {
-            temp = (char*) apr_pcalloc(thread->r->pool, size);
             lua_newtable(L);
             current = strstr(string, delimiter);
             while ( current ) {
