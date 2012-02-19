@@ -1342,12 +1342,10 @@ static int lua_explode(lua_State *L) {
                 previous = current;
                 current = strstr(current + 1, delimiter);
             }
-            if ( (string != current) ) {
-                tmpsize = string - current;
-                lua_pushinteger(L, ++i);
-                lua_pushlstring(L, current, tmpsize);
-                lua_rawset(L, -3);
-            }
+            tmpsize = string - previous;
+            lua_pushinteger(L, ++i);
+            lua_pushlstring(L, previous, tmpsize);
+            lua_rawset(L, -3);
         }
         return (1);
     }
