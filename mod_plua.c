@@ -1342,7 +1342,7 @@ static int lua_explode(lua_State *L) {
                 lua_pushlstring(L, previous, tmpsize);
                 lua_rawset(L, -3);
                 previous = current;
-                current = strstr(string, delimiter);
+                current = strstr(current + 1, delimiter);
             }
             if ( (current - string) < size) {
                 tmpsize = current - previous;
