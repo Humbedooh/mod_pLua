@@ -347,6 +347,7 @@ static int          lua_setErrorLevel(lua_State *L);
 static int          lua_setReturnCode(lua_State *L);
 static int          lua_httpError(lua_State *L);
 static int          lua_getEnv(lua_State *L);
+static int          lua_sendfile(lua_State *L);
 static int          lua_fileinfo(lua_State *L);
 static pLuaClock    pLua_getClock(char useAPR);
 static int          lua_clock(lua_State *L);
@@ -376,8 +377,8 @@ const char          *pLua_set_Raw(cmd_parms *cmd, void *cfg, const char *arg);
 const char          *pLua_set_MemoryLimit(cmd_parms *cmd, void *cfg, const char *arg);
 const char          *pLua_set_ShortHand(cmd_parms *cmd, void *cfg, const char *arg);
 const char          *pLua_set_Ignore(cmd_parms *cmd, void *cfg, const char *arg);
-AP_DECLARE (ap_dbd_t *)
-ap_dbd_acquire(request_rec *);
+AP_DECLARE (ap_dbd_t *) ap_dbd_acquire(request_rec *);
+
 static const command_rec        my_directives[] =
 {
     AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
@@ -425,6 +426,7 @@ static const luaL_reg           File_methods[] =
     { "unlink", lua_unlink },
     { "stat", lua_fileinfo },
     { "exists", lua_fileexists },
+    { "send", lua_sendfile },
     { 0, 0 }
 };
 static const luaL_reg           Global_methods[] =

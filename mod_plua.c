@@ -1586,11 +1586,15 @@ static int lua_sendfile(lua_State *L)
         thread = pLua_get_thread(L);
         if (thread) {
             apr_size_t sent;
+            apr_status_t rc;
             apr_file_t* file;
-            apr_file_open(&file, filename, APR_READ, APR_OS_DEFAULT, thread->r->pool);
-            ap_send_fd(file, thread->r, 0, fileinfo.st_size, &sent);
-            apr_file_close(file);
-            lua_pushinteger(L, sent);
+            rc = apr_file_open(&file, filename, APR_READ, APR_OS_DEFAULT, thread->r->pool);
+            if (rc == APR_SUCCESS) {
+                ap_send_fd(file, thread->r, 0, fileinfo.st_size, &sent);
+                apr_file_close(file);
+                lua_pushinteger(L, sent);
+            }
+            else lua_pushboolean(L, 0);
         }
         else lua_pushboolean(L, 0);
     }
