@@ -327,6 +327,7 @@ char                *pLua_encode_base64(const char *src, size_t len, lua_thread 
 static int          lua_sha256(lua_State *L);
 static int          lua_b64dec(lua_State *L);
 static int          lua_b64enc(lua_State *L);
+static int          lua_explode(lua_State *L);
 static int          lua_fileexists(lua_State *L);
 static int          lua_unlink(lua_State *L);
 static int          lua_rename(lua_State *L);

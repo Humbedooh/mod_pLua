@@ -1320,7 +1320,7 @@ static int lua_explode(lua_State *L) {
     const char* delimiter;
     char *temp = 0;
     char *current = 0;
-    char *previous = 0;
+    const char *previous = 0;
     size_t at,size;
     lua_thread* thread;
     int i = 0;
