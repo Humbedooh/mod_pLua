@@ -1265,7 +1265,7 @@ static int lua_echo(lua_State *L) {
 
     /*~~~~~~~~~~~~~~~~*/
     const char  *el;
-    char string[32];
+    char string[36];
     lua_thread  *thread;
     int         y,
                 z,
@@ -1293,9 +1293,9 @@ static int lua_echo(lua_State *L) {
             }
             else {
                 if ( t == LUA_TBOOLEAN ) el = (lua_toboolean(L, y)) ? "true" : "false";
-                if ( t == LUA_TFUNCTION ) { sprintf(string,"function [0x%p]", lua_topointer(L, y)); el = string; }
-                if ( t == LUA_TTABLE ) { sprintf(string,"table [0x%p]", lua_topointer(L, y)); el = string; }
-                if ( t == LUA_TUSERDATA || t == LUA_TLIGHTUSERDATA ) { sprintf(string,"userdata [0x%p]", lua_topointer(L, y)); el = string; }
+                if ( t == LUA_TFUNCTION ) { sprintf(string,"function [%p]", lua_topointer(L, y)); el = string; }
+                if ( t == LUA_TTABLE ) { sprintf(string,"table [%p]", lua_topointer(L, y)); el = string; }
+                if ( t == LUA_TUSERDATA || t == LUA_TLIGHTUSERDATA ) { sprintf(string,"userdata [%p]", lua_topointer(L, y)); el = string; }
                 if ( t == LUA_TNIL ) el = "nil";
                 if (el) ap_rputs(el, thread->r);
             }
