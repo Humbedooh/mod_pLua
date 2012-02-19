@@ -1250,7 +1250,8 @@ static int lua_sleep(lua_State *L) {
 
     luaL_checktype(L, 1, LUA_TNUMBER);
     n = lua_tonumber(L, 1);
-    n = ((LUA_TIMEOUT > 0) && (LUA_TIMEOUT < n && n > 0)) ? LUA_TIMEOUT : n;
+    if (n < 0) n = 1;
+    n = ((LUA_TIMEOUT > 0) && (LUA_TIMEOUT < n)) ? LUA_TIMEOUT : n;
     apr_sleep(n * 1000000);
     return (0);
 }
