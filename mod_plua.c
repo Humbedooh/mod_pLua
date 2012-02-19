@@ -1565,6 +1565,39 @@ static int lua_fileinfo(lua_State *L)
     return (1);
 }
 
+
+static int lua_sendfile(lua_State *L)
+{
+#if __WIN
+#   define open    _open
+#endif
+
+    /*~~~~~~~~~~~~~~~~~~*/
+    struct stat fileinfo;
+    const char  *filename;
+    lua_thread  *thread;
+    /*~~~~~~~~~~~~~~~~~~*/
+
+    luaL_checktype(L, 1, LUA_TSTRING);
+    filename = lua_tostring(L, 1);
+    lua_settop(L, 0);
+    if (stat(filename, &fileinfo) == -1) lua_pushboolean(L, 0);
+    else {
+        thread = pLua_get_thread(L);
+        if (thread) {
+            apr_size_t sent;
+            apr_file_t* file;
+            apr_file_open(&file, filename, APR_READ, APR_OS_DEFAULT, thread->r->pool);
+            ap_send_fd(file, thread->r, 0, fileinfo.st_size, &sent);
+            apr_file_close(file);
+            lua_pushinteger(L, sent);
+        }
+        else lua_pushboolean(L, 0);
+    }
+
+    return (1);
+}
+
 /*
  =======================================================================================================================
     lua_clock(lua_State *L): clock(): Returns a high definition clock value for use with benchmarking.
@@ -1697,7 +1730,7 @@ static int parse_urlencoded(lua_thread *thread, const char *data) {
         for (x = 0; x < y; x++) {
             if (val[x] == '+') ((char *) val)[x] = ' ';
         }
-
+        
         ap_unescape_url((char *) key);
         ap_unescape_url((char *) val);
         for (z = 0; z < MAX_VARS; z++) {
