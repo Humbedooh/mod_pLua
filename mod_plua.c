@@ -117,7 +117,7 @@ static int plua_handler(request_rec *r) {
         l->debugging = 0;
         l->errorLevel = LUA_PERROR;
 #ifndef _WIN32
-        //rc = chdir(getPWD(l));
+        rc = chdir(getPWD(l));
 #else
         SetCurrentDirectoryA(getPWD(l));
 #endif
