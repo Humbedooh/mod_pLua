@@ -655,7 +655,6 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
                 /* Push the binary chunk onto the Lua registry and save the reference */
                 x = luaL_ref(thread->state, LUA_REGISTRYINDEX);
                 if (PLUA_DEBUG) ap_rprintf(thread->r, "Pushed the string from %s onto the registry at index %u<br/>", filename, x);
-                lua_xmo
                 /* Look for an empty slot in our file cache to save this reference. */
                 for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
