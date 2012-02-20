@@ -29,7 +29,7 @@ static void register_hooks(apr_pool_t *pool) {
 
     /* Hook initialization of global variables to the child init stage */
     ap_hook_child_init(module_init, NULL, NULL, APR_HOOK_MIDDLE);
-
+    
     /* Hook the file handler */
     ap_hook_handler(plua_handler, NULL, NULL, APR_HOOK_LAST);
 }
@@ -167,7 +167,7 @@ static int plua_handler(request_rec *r) {
                 lua_sethook(L, pLua_debug_hook, LUA_MASKLINE | LUA_MASKCOUNT, 1);
             }
 
-            rc = lua_pcall(L, 0, LUA_MULTRET, 0);
+            rc = lua_pcall(L, 0, 0, 0);
 
             /* DId we get a run-time error? */
             if (rc) {
@@ -655,7 +655,7 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
                 /* Push the binary chunk onto the Lua registry and save the reference */
                 x = luaL_ref(thread->state, LUA_REGISTRYINDEX);
                 if (PLUA_DEBUG) ap_rprintf(thread->r, "Pushed the string from %s onto the registry at index %u<br/>", filename, x);
-
+                lua_xmo
                 /* Look for an empty slot in our file cache to save this reference. */
                 for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
@@ -2008,7 +2008,7 @@ static int lua_includeFile(lua_State *L) {
             rc = lua_compile_file(thread, filename, &fileinfo, compileRaw);
             if (rc > 0) {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
-                rc = lua_pcall(L, 0, LUA_MULTRET, 0);
+                rc = lua_pcall(L, 0, 0, 0);
                 if (rc) {
                     pLua_print_error(thread, "Run-time error", filename);
                     lua_pushboolean(L, 0);
