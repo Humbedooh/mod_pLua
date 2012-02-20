@@ -21,10 +21,12 @@ static void register_hooks(apr_pool_t *pool) {
     int x;
     /*~~*/
 
+    /* Initialize pLua raw script extensions */
     for (x = 0; x < PLUA_RAW_TYPES; x++) {
         pLua_rawTypes[x] = (char *) apr_pcalloc(pool, 64);
     }
 
+    // Init the library ignore list
     memset(LUA_IGNORE, 0, 256);
 
     /* Hook initialization of global variables to the child init stage */
@@ -115,7 +117,7 @@ static int plua_handler(request_rec *r) {
         l->debugging = 0;
         l->errorLevel = LUA_PERROR;
 #ifndef _WIN32
-        rc = chdir(getPWD(l));
+        //rc = chdir(getPWD(l));
 #else
         SetCurrentDirectoryA(getPWD(l));
 #endif
