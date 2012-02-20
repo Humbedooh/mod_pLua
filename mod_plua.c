@@ -491,10 +491,6 @@ int lua_parse_file(lua_thread *thread, char *input) {
                 snprintf(test, matchStart - input + 18, "echo([===[%s]===]);", input + at);
 #endif
                 matchStart[0] = X;
-
-                /*
-                 * ap_rprintf(thread->r, "Adding raw data: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
-                 */
                 lua_add_code(&output, test);
             }
 
@@ -517,12 +513,8 @@ int lua_parse_file(lua_thread *thread, char *input) {
                     test[matchEnd - matchStart - 1 - strlen(sTag)] = 0;
                     at = matchEnd - input + strlen(eTag);
                     sprintf(etest, "echo(%s);", test);
-
-                    /*
-                     * ap_rprintf(thread->r, "Adding echo-code: <pre>echo(%s)</pre><br/>",
-                     * ap_escape_html(thread->r->pool, test));
-                     */
                     lua_add_code(&output, etest);
+                    
                 } /* <? code ?> check */ else {
                     test = (char *) apr_pcalloc(thread->r->pool, matchEnd - matchStart + strlen(sTag) + 10);
                     strncpy(test, matchStart + strlen(sTag), matchEnd - matchStart - strlen(sTag));
@@ -654,7 +646,6 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
 
                 /* Push the binary chunk onto the Lua registry and save the reference */
                 x = luaL_ref(thread->state, LUA_REGISTRYINDEX);
-                if (PLUA_DEBUG) ap_rprintf(thread->r, "Pushed the string from %s onto the registry at index %u<br/>", filename, x);
                 /* Look for an empty slot in our file cache to save this reference. */
                 for (y = 0; y < LUA_FILES; y++) {
                     if (!strlen(thread->files[y].filename)) {
@@ -664,7 +655,6 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
                         thread->files[y].refindex = x;
                         foundSlot = 1;
                         thread->youngest = y;
-                        if (PLUA_DEBUG) ap_rprintf(thread->r, "New file: Pushed it into the file list at index %u<br/>", y);
                         break;
                     }
                 }
@@ -684,7 +674,6 @@ int lua_compile_file(lua_thread *thread, const char *filename, apr_finfo_t *stat
                     strcpy(thread->files[y].filename, filename);
                     thread->files[y].modified = statbuf->mtime;
                     thread->files[y].refindex = x;
-                    if (PLUA_DEBUG) ap_rprintf(thread->r, "Pushed the into the file list at index %u, replacing an old file<br/>", y);
                 }
 
                 /* Return the reference number */
