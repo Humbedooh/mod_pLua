@@ -1659,7 +1659,6 @@ static int lua_getRequestBody(lua_State *L)
     lua_thread  *thread;
     /*~~~~~~~~~~~~~~~~~~*/
     filename = luaL_optstring(L, 1, 0);
-    lua_settop(L, 0);
     thread = pLua_get_thread(L);
     if (thread) {
         apr_off_t size;
@@ -1676,7 +1675,10 @@ static int lua_getRequestBody(lua_State *L)
         else {
             apr_status_t rc;
             apr_file_t* file;
+            lua_pushstring(L, filename);
+            return (1);
             rc = apr_file_open(&file, filename, APR_CREATE, APR_FPROT_OS_DEFAULT, thread->r->pool);
+            lua_settop(L, 0);
             if (rc == APR_SUCCESS) {
                 rc = util_write(thread->r, file, &size);
                 apr_file_close(file);
