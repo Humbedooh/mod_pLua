@@ -1676,7 +1676,7 @@ static int lua_getRequestBody(lua_State *L)
         else {
             apr_status_t rc;
             apr_file_t* file;
-            rc = apr_file_open(&file, filename, APR_WRITE, APR_OS_DEFAULT, thread->r->pool);
+            rc = apr_file_open(&file, filename, APR_CREATE, APR_FPROT_OS_DEFAULT, thread->r->pool);
             if (rc == APR_SUCCESS) {
                 rc = util_write(thread->r, file, &size);
                 apr_file_close(file);
