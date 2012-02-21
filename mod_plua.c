@@ -1661,7 +1661,7 @@ static int lua_getRequestBody(lua_State *L)
     filename = luaL_optstring(L, 1, 0);
     lua_settop(L, 0);
     thread = pLua_get_thread(L);
-    if (thread) {
+    if (thread && thread->r->remaining != 0) {
         apr_off_t size;
         if (!filename) {
             const char* data;
