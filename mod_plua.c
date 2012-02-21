@@ -522,10 +522,6 @@ int lua_parse_file(lua_thread *thread, char *input) {
                     strncpy(test, matchStart + strlen(sTag), matchEnd - matchStart - strlen(sTag));
                     test[matchEnd - matchStart - strlen(sTag)] = 0;
                     at = matchEnd - input + strlen(eTag);
-
-                    /*
-                     * ap_rprintf(thread->r, "Adding code: <pre>%s</pre><br/>", ap_escape_html(thread->r->pool, test));
-                     */
                     lua_add_code(&output, test);
                 }
             }

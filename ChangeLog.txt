@@ -1,3 +1,7 @@
+0.49:
+- Modules built with apxs should now run on UNIX platforms with Lua 5.2
+
+
 0.48:
 - Added file.send(filename) for sending static files using the internal sendfile mechanism
 - Calling sleep with a negative number will now default to sleeping for 1 second
