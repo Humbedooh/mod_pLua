@@ -355,6 +355,7 @@ static pLuaClock    pLua_getClock(char useAPR);
 static int          lua_clock(lua_State *L);
 static int          lua_compileTime(lua_State *L);
 static int          util_read(request_rec *r, const char **rbuf, apr_off_t *size);
+static int          util_write(request_rec *r, apr_file_t* file, apr_off_t *size);
 static int          parse_urlencoded(lua_thread *thread, const char *data);
 static int          parse_multipart(lua_thread *thread, const char *data, const char *multipart, apr_off_t size);
 static int          lua_parse_post(lua_State *L);

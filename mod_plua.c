@@ -1664,7 +1664,7 @@ static int lua_getRequestBody(lua_State *L)
     if (thread) {
         apr_off_t size;
         if (!filename) {
-            char* data = 0;
+            const char* data;
             if (util_read(thread->r, &data, &size) != OK) {
                 return (0);
             }
