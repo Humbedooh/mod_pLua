@@ -1675,19 +1675,18 @@ static int lua_getRequestBody(lua_State *L)
         else {
             apr_status_t rc;
             apr_file_t* file;
-            rc = apr_file_open(&file, filename, APR_CREATE, APR_FPROT_OS_DEFAULT, thread->r->pool);
+            rc = apr_file_open(&file, filename, APR_CREATE | APR_FOPEN_WRITE, APR_FPROT_OS_DEFAULT, thread->r->pool);
             lua_settop(L, 0);
             if (rc == APR_SUCCESS) {
                 rc = util_write(thread->r, file, &size);
                 apr_file_close(file);
                 if (rc == -1) {
-                    lua_pushboolean(L, 0);
-                    return(1);
+                    return(0);
                 }
                 lua_pushinteger(L, size);
                 return (1);
             }
-            else lua_pushboolean(L, 1);
+            else lua_pushboolean(L, 0);
             return (1);
         }
     }
