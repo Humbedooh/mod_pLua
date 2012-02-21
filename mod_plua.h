@@ -349,6 +349,7 @@ static int          lua_setReturnCode(lua_State *L);
 static int          lua_httpError(lua_State *L);
 static int          lua_getEnv(lua_State *L);
 static int          lua_sendfile(lua_State *L);
+static int          lua_getRequestBody(lua_State *L);
 static int          lua_fileinfo(lua_State *L);
 static pLuaClock    pLua_getClock(char useAPR);
 static int          lua_clock(lua_State *L);
@@ -449,6 +450,7 @@ static const luaL_reg           Global_methods[] =
     { "include", lua_includeFile },
     { "dbopen", lua_dbopen },
     { "showErrors", lua_setErrorLevel },
+    { "getRequestBody", lua_getRequestBody },
     { 0, 0 }
 };
 static const luaL_reg           String_methods[] = { 

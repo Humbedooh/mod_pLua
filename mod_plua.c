@@ -90,7 +90,7 @@ static int plua_handler(request_rec *r) {
 
     /* Check if we are being called, and that the request method is one we can handle. */
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
-    if (r->method_number != M_GET && r->method_number != M_POST) return (HTTP_METHOD_NOT_ALLOWED);
+    if (r->method_number != M_GET && r->method_number != M_POST && r->method_number != M_PUT && r->method_number != M_DELETE) return (HTTP_METHOD_NOT_ALLOWED);
 
     /* Check if the file requested really exists. */
     exists = ((r->finfo.filetype != APR_NOFILE) && !(r->finfo.filetype & APR_DIR));
@@ -1651,6 +1651,47 @@ static int lua_sendfile(lua_State *L)
     return (1);
 }
 
+
+static int lua_getRequestBody(lua_State *L)
+{
+    /*~~~~~~~~~~~~~~~~~~*/
+    const char  *filename;
+    lua_thread  *thread;
+    /*~~~~~~~~~~~~~~~~~~*/
+    filename = luaL_optstring(L, 1, 0);
+    lua_settop(L, 0);
+    thread = pLua_get_thread(L);
+    if (thread) {
+        apr_off_t size;
+        if (!filename) {
+            char* data = 0;
+            if (util_read(thread->r, &data, &size) != OK) {
+                return (0);
+            }
+            lua_pushlstring(L, data, size);
+            lua_pushinteger(L, size);
+            return (2);
+        }
+        else {
+            apr_status_t rc;
+            apr_file_t* file;
+            rc = apr_file_open(&file, filename, APR_WRITE, APR_OS_DEFAULT, thread->r->pool);
+            if (rc == APR_SUCCESS) {
+                rc = util_write(thread->r, file, &size);
+                apr_file_close(file);
+                if (rc == -1) {
+                    lua_pushboolean(L, 0);
+                    return(1);
+                }
+                lua_pushinteger(L, size);
+                return (1);
+            }
+            else lua_pushboolean(L, 0);
+        }
+    }
+    return (0);
+}
+
 /*
  =======================================================================================================================
     lua_clock(lua_State *L): clock(): Returns a high definition clock value for use with benchmarking.
@@ -1700,7 +1741,7 @@ static int lua_compileTime(lua_State *L) {
 
 /*
  =======================================================================================================================
-    util_read(request_rec *r, const char **rbuf, apr_off_t *size): Reads any additional form data sent in POST
+    util_read(request_rec *r, const char **rbuf, apr_off_t *size): Reads any additional form data sent in POST/PUT
     requests.
  =======================================================================================================================
  */
@@ -1725,20 +1766,9 @@ static int util_read(request_rec *r, const char **rbuf, apr_off_t *size) {
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         *rbuf = (const char *) apr_pcalloc(r->pool, length + 1);
-
-        /*
-         * ap_rprintf(r, "Getting data of %u bytes\n", length);
-         */
         *size = length;
-
-        /*
-         * ap_hard_timeout("util_read", r);
-         */
         while ((len_read = ap_get_client_block(r, argsbuffer, sizeof(argsbuffer))) > 0) {
 
-            /*
-             * ap_reset_timeout(r);
-             */
             if ((rpos + len_read) > length) {
                 rsize = length - rpos;
             } else {
@@ -1748,10 +1778,50 @@ static int util_read(request_rec *r, const char **rbuf, apr_off_t *size) {
             memcpy((char *) *rbuf + rpos, argsbuffer, rsize);
             rpos += rsize;
         }
+    }
 
-        /*
-         * ap_kill_timeout(r);
-         */
+    return (rc);
+}
+
+
+/*
+ =======================================================================================================================
+    util_write(request_rec *r, const char **rbuf, apr_off_t *size): Reads any additional form data sent in POST/PUT
+    requests and writes to a file.
+ =======================================================================================================================
+ */
+static int util_write(request_rec *r, apr_file_t* file, apr_off_t *size) {
+
+    /*~~~~~~~~*/
+    int rc = OK;
+    /*~~~~~~~~*/
+
+    if ((rc = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR))) {
+        return (rc);
+    }
+
+    if (ap_should_client_block(r)) {
+
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        char        argsbuffer[HUGE_STRING_LEN];
+        apr_size_t  rsize,written,
+                    len_read,
+                    rpos = 0;
+        apr_off_t   length = r->remaining;
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+        *size = length;
+        while ((len_read = ap_get_client_block(r, argsbuffer, sizeof(argsbuffer))) > 0) {
+
+            if ((rpos + len_read) > length) {
+                rsize = length - rpos;
+            } else {
+                rsize = len_read;
+            }
+            rc = apr_file_write_full(file, argsbuffer, rsize, &written);
+            if (written != rsize) return -1;
+            rpos += rsize;
+        }
     }
 
     return (rc);
