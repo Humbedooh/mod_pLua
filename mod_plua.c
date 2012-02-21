@@ -1687,7 +1687,7 @@ static int lua_getRequestBody(lua_State *L)
                 lua_pushinteger(L, size);
                 return (1);
             }
-            else lua_pushboolean(L, 0);
+            else lua_pushboolean(L, 1);
         }
     }
     return (0);
