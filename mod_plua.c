@@ -143,7 +143,7 @@ static int plua_handler(request_rec *r) {
                 }
             } else break;
         }
-
+        
         /* Call the compiler function and let it either compile or read from cache. */
         rc = lua_compile_file(l, r->filename, &r->finfo, compileRaw);
 
@@ -1465,6 +1465,7 @@ static int lua_getEnv(lua_State *L) {
         apr_table_entry_t   *e = 0;
         char                *pwd = getPWD(thread);
         char                luaVersion[32];
+        ap_version_t        version;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         sprintf(luaVersion, "%u.%u", (LUA_VERSION_NUM / 100), (LUA_VERSION_NUM) % (LUA_VERSION_NUM / 100));
@@ -1568,6 +1569,12 @@ static int lua_getEnv(lua_State *L) {
         lua_pushstring(thread->state, "Server-Banner");
         lua_pushstring(thread->state, ap_get_server_banner());
         lua_rawset(L, -3);
+        
+        ap_get_server_revision(&version);
+        lua_pushstring(thread->state, "Server-Version");
+        lua_pushfstring(thread->state, "%u.%u.%u", version.major,version.minor,version.patch);
+        lua_rawset(L, -3);
+        
         return (1);
     }
 
