@@ -37,5 +37,5 @@ install:
 	$(APXS) -a -i -n plua mod_plua.la
 
 clean:
-	rm -f *.lo *.so
+	rm -rf *.lo *.o *.slo *.la .libs
 	
