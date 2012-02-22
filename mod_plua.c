@@ -1572,7 +1572,7 @@ static int lua_getEnv(lua_State *L) {
         
         ap_get_server_revision(&version);
         lua_pushstring(thread->state, "Server-Version");
-        lua_pushfstring(thread->state, "%u.%u.%u", version.major,version.minor,version.patch);
+        lua_pushfstring(thread->state, "%f.%f.%f", version.major,version.minor,version.patch);
         lua_rawset(L, -3);
         
         return (1);
