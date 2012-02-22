@@ -1466,6 +1466,8 @@ static int lua_getEnv(lua_State *L) {
         char                *pwd = getPWD(thread);
         char                luaVersion[32];
         ap_version_t        version;
+        char                http_version[64];
+        
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         sprintf(luaVersion, "%u.%u", (LUA_VERSION_NUM / 100), (LUA_VERSION_NUM) % (LUA_VERSION_NUM / 100));
@@ -1571,8 +1573,9 @@ static int lua_getEnv(lua_State *L) {
         lua_rawset(L, -3);
         
         ap_get_server_revision(&version);
+        sprintf(http_version, "%u.%u.%u", version.major, version.minor, version.patch);
         lua_pushstring(thread->state, "Server-Version");
-        lua_pushfstring(thread->state, "%f.%f.%f", version.major,version.minor,version.patch);
+        lua_pushstring(thread->state, http_version);
         lua_rawset(L, -3);
         
         return (1);
