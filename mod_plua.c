@@ -51,7 +51,7 @@ static void module_init(apr_pool_t *pool, server_rec *s) {
 
     /*
      * Get the difference between apt_time_now and the native clock function if any. This is, at present,
-     * only really needed by Window
+     * only really needed by Windows.
      */
     aprClock = pLua_getClock(1);
     cpuClock = pLua_getClock(0);

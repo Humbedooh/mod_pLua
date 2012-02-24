@@ -384,31 +384,31 @@ AP_DECLARE (ap_dbd_t *) ap_dbd_acquire(request_rec *);
 
 static const command_rec        my_directives[] =
 {
-    AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_ALL, "Sets the number of Lua states to keep open at all times."),
-    AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_ALL, "Sets the number of sessions each state can operate before restarting."),
-    AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_ALL, "Sets the number of lua scripts to keep cached."),
+    AP_INIT_TAKE1("pLuaStates", pLua_set_LuaStates, NULL, OR_NONE, "Sets the number of Lua states to keep open at all times."),
+    AP_INIT_TAKE1("pLuaRuns", pLua_set_LuaRuns, NULL, OR_NONE, "Sets the number of sessions each state can operate before restarting."),
+    AP_INIT_TAKE1("pLuaFiles", pLua_set_LuaFiles, NULL, OR_NONE, "Sets the number of lua scripts to keep cached."),
     AP_INIT_TAKE1("pLuaRaw", pLua_set_Raw, NULL, OR_ALL, "Sets a specific file extension to be run as a plain Lua file."),
     AP_INIT_TAKE1
         (
-            "pLuaMemoryLimit", pLua_set_MemoryLimit, NULL, OR_ALL,
+            "pLuaMemoryLimit", pLua_set_MemoryLimit, NULL, OR_NONE,
                 "Sets a specific memory limit (in kilobytes) for each thread. Default is 0 (no limit)."
         ),
     AP_INIT_TAKE1
         (
-            "pLuaIgnoreLibrary", pLua_set_Ignore, NULL, OR_ALL,
+            "pLuaIgnoreLibrary", pLua_set_Ignore, NULL, OR_NONE,
                 "Ignores one or more specified Lua core libraries from being loaded into state."
         ),
-    AP_INIT_TAKE1("pLuaShortHand", pLua_set_ShortHand, NULL, OR_ALL, "Set to 0 to disable shorthand opening tags. Default is 1 (enabled)"),
+    AP_INIT_TAKE1("pLuaShortHand", pLua_set_ShortHand, NULL, OR_NONE, "Set to 0 to disable shorthand opening tags. Default is 1 (enabled)"),
     AP_INIT_TAKE1
         (
-            "pLuaTimeout", pLua_set_Timeout, NULL, OR_ALL,
+            "pLuaTimeout", pLua_set_Timeout, NULL, OR_NONE,
                 "Sets the maximum number of seconds a pLua script may take to execute. Set to 0 to disable."
         ),
-    AP_INIT_TAKE1("pLuaError", pLua_set_Logging, NULL, OR_ALL, "Sets the error logging level. Set to 0 to disable errors, 1 to enable."),
-    AP_INIT_TAKE1("pLuaMultiDomain", pLua_set_Multi, NULL, OR_ALL, "Enables or disabled support for domain state pools."),
+    AP_INIT_TAKE1("pLuaError", pLua_set_Logging, NULL, OR_NONE, "Sets the error logging level. Set to 0 to disable errors, 1 to enable."),
+    AP_INIT_TAKE1("pLuaMultiDomain", pLua_set_Multi, NULL, OR_NONE, "Enables or disabled support for domain state pools."),
     AP_INIT_TAKE1
         (
-            "pLuaLogLevel", pLua_set_LogLevel, NULL, OR_ALL,
+            "pLuaLogLevel", pLua_set_LogLevel, NULL, OR_NONE,
                 "Sets the logging level for pLua (0 = disable all, 1 = errors, 2 = module notices, 3 = everything including script errors)."
         ),
     { NULL }
