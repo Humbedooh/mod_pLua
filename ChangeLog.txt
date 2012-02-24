@@ -1,6 +1,7 @@
 0.50:
 - The Makefile script will now properly clean up when `make clean` is called
 - getEnv() will now report a Server-Version value as well (major.minor.patch)
+- Directives are now only permissable within the main Apache configuration
 
 0.49:
 - Modules built with apxs should now run on UNIX platforms with Lua 5.2

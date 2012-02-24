@@ -28,7 +28,7 @@ luajit: mod_plua.c
 	$(APXS) -D_WITH_MOD_DBD=${PLUADBD} -I/usr/include/luajit-2.0 -lluajit-5.1 -c $?
 	
 5.1: mod_plua.c
-	$(APXS) -D_WITH_MOD_DBD=${PLUADBD} -I/usr/include/lua5.1 -llua5.1 -c $?
+	$(APXS) -D_WITH_MOD_DBD=${PLUADBD} -I/usr/include/lua5.1 -llua5.1 -lm -c $?
 
 5.2: mod_plua.c
 	$(APXS) -D_WITH_MOD_DBD=${PLUADBD} -llua -lm -c $?
