@@ -43,7 +43,7 @@ static void register_hooks(apr_pool_t *pool) {
  =======================================================================================================================
  */
 static void module_init(apr_pool_t *pool, server_rec *s) {
-
+    
     /*~~~~~~~~~~~~~~~~~*/
     pLuaClock   aprClock,
                 cpuClock;
@@ -87,7 +87,7 @@ static int plua_handler(request_rec *r) {
     int     exists = 1;
     char    compileRaw = 0;
     /*~~~~~~~~~~~~~~~~~~~*/
-
+    
     /* Check if we are being called, and that the request method is one we can handle. */
     if (!r->handler || strcmp(r->handler, "plua")) return (DECLINED);
     if (r->method_number != M_GET && r->method_number != M_POST && r->method_number != M_PUT && r->method_number != M_DELETE) return (HTTP_METHOD_NOT_ALLOWED);
@@ -1098,6 +1098,7 @@ static int lua_dbopen(lua_State *L) {
                 db->alive = 1;
                 db->driver = dbdhandle->driver;
                 db->handle = dbdhandle->handle;
+                lua_newuserdata()
                 lua_newtable(L);
 
                 /* Create metatable for __gc function */
@@ -2063,6 +2064,8 @@ static int lua_includeFile(lua_State *L) {
         /*~~~~~~~~~~~~~~~~~*/
         apr_finfo_t fileinfo;
         int         rc = 0;
+        char *xStart, xEnd;
+        int x;
         /*~~~~~~~~~~~~~~~~~*/
 
         luaL_checktype(L, 1, LUA_TSTRING);
@@ -2072,6 +2075,22 @@ static int lua_includeFile(lua_State *L) {
         rc = ((fileinfo.filetype != APR_NOFILE) && !(fileinfo.filetype & APR_DIR));
         if (!rc) lua_pushboolean(L, 0);
         else {
+            /* Check if we want to compile this file as a plain lua file or not */
+            xEnd = thread->r->filename;
+            xStart = strchr(thread->r->filename, '.');
+            while (xStart != 0) {
+                xEnd = xStart;
+                xStart = strchr(xEnd + 1, '.');
+            }
+
+            for (x = 0; x < PLUA_RAW_TYPES; x++) {
+                if (strlen(pLua_rawTypes[x])) {
+                    if (!strcmp(xEnd, pLua_rawTypes[x])) {
+                        compileRaw = 1;
+                        break;
+                    }
+                } else break;
+            }
             rc = lua_compile_file(thread, filename, &fileinfo, compileRaw);
             if (rc > 0) {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
