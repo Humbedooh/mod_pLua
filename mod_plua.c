@@ -2075,8 +2075,8 @@ static int lua_includeFile(lua_State *L) {
         if (!rc) lua_pushboolean(L, 0);
         else {
             /* Check if we want to compile this file as a plain lua file or not */
-            xEnd = thread->r->filename;
-            xStart = strchr(thread->r->filename, '.');
+            xEnd = filename;
+            xStart = strchr(filename, '.');
             while (xStart != 0) {
                 xEnd = xStart;
                 xStart = strchr(xEnd + 1, '.');
