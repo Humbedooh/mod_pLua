@@ -2063,7 +2063,7 @@ static int lua_includeFile(lua_State *L) {
         /*~~~~~~~~~~~~~~~~~*/
         apr_finfo_t fileinfo;
         int         rc = 0;
-        char *xStart, xEnd;
+        char *xStart, *xEnd;
         int x;
         /*~~~~~~~~~~~~~~~~~*/
 
