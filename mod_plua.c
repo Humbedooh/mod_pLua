@@ -3124,3 +3124,13 @@ const char *pLua_set_Ignore(cmd_parms *cmd, void *cfg, const char *arg) {
     sscanf(arg, "%255c", LUA_IGNORE);
     return (NULL);
 }
+
+module AP_MODULE_DECLARE_DATA   plua_module = {
+    STANDARD20_MODULE_STUFF,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    my_directives,
+    register_hooks
+};

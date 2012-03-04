@@ -413,7 +413,6 @@ static const command_rec        my_directives[] =
         ),
     { NULL }
 };
-module AP_MODULE_DECLARE_DATA   plua_module = { STANDARD20_MODULE_STUFF, NULL, NULL, NULL, NULL, my_directives, register_hooks };
 static const luaL_reg           db_methods[] =
 {
     { "escape", lua_dbescape },
