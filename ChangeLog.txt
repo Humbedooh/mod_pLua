@@ -1,3 +1,7 @@
+0.51:
+- Moved a declaration from the header to the c file to ease APXS installation (thanks to Igor Galic for this patch)
+- Binaries built with mod_dbd support will no longer complain that mod_dbd isn't enabled when a connection fails
+
 0.50:
 - The Makefile script will now properly clean up when `make clean` is called
 - getEnv() will now report a Server-Version value as well (major.minor.patch)

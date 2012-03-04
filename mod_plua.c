@@ -1117,7 +1117,11 @@ static int lua_dbopen(lua_State *L) {
             } else {
                 if (pool) apr_pool_destroy(pool);
                 lua_pushnil(L);
+#if (_WITH_MOD_DBD == 1)
+                lua_pushliteral(L, "Could not acquire connection from mod_dbd. If your database is running, this may indicate a permission problem.");
+#else
                 lua_pushliteral(L, "This module was not compiled with mod_dbd support.");
+#end
                 return (2);
             }
         } else {
