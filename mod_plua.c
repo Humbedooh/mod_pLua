@@ -1405,7 +1405,7 @@ static int lua_echo(lua_State *L)
         lua_settop(L, 0);
     }
     else {
-        fprintf(stderr, "Couldn't get the lua handle :(\r\n");
+        fprintf(stderr, "echo()/print() failed: Couldn't get the Lua handle :(\r\n");
         fflush(stderr);
     }
 
@@ -1496,13 +1496,6 @@ static int lua_setContentType(lua_State *L)
         ap_set_content_type(thread->r, el);
         thread->typeSet = 1;
     }
-    else {
-
-        /*
-         * ap_rputs("Couldn't find our userdata :(",thread->r);
-         */
-    }
-
     return (0);
 }
 
@@ -2282,7 +2275,7 @@ static int lua_includeFile(lua_State *L)
                 lua_rawgeti(L, LUA_REGISTRYINDEX, rc);
                 rc = lua_pcall(L, 0, 0, 0);
                 if (rc) {
-                    pLua_print_error(thread, "Run-time error", filename);
+                    pLua_print_error(thread, "Run-time error in included file", filename);
                     lua_pushboolean(L, 0);
                 }
                 else
