@@ -1215,7 +1215,8 @@ static int lua_dbopen(lua_State *L)
 #else
                 lua_pushliteral(L,
                                 "This module was not compiled with mod_dbd support.");
-                #end return (2);
+#end 
+                return (2);
             }
         }
         else {
