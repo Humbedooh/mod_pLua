@@ -2178,7 +2178,7 @@ static int lua_parse_post(lua_State *L)
             return (1);
         }
 
-        if (strcasecmp(type, DEFAULT_ENCTYPE) == 0) {
+        if (strstr(type, DEFAULT_ENCTYPE) != 0) {
             if (util_read(thread->r, &data, &size) != OK) {
                 return (1);
             }
