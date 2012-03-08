@@ -1,9 +1,7 @@
-/*$T indentinput.c GC 1.140 03/05/12 16:45:01 */
-
 /*
- * File: main.c Author: Humbedooh Created on 4. january 2012, 23:30 ;
- * Include the heade
+ * File: mod_plua.c Author: Humbedooh Created on 4. january 2012, 23:30 ;
  */
+
 #include "mod_plua.h"
 
 /*$1

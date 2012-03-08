@@ -1,4 +1,7 @@
-/*$I0 */
+/*
+ * File: mod_plua.h Author: Humbedooh Created on 4. january 2012, 23:30 ;
+ */
+
 #ifndef _MOD_PLUA_H_    /* mod_plua.h */
 
 /*$1
