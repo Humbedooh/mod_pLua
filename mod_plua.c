@@ -675,7 +675,7 @@ int lua_compile_file
             }
             else {
                 if (iBuffer) {
-
+					/* If the first line starts with #!, ignore it. */
                     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
                     const char  *shebang = strstr(iBuffer, "#!");
                     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/

@@ -13,7 +13,7 @@
 #   define LINUX   2
 #   define _LARGEFILE64_SOURCE
 #   define LUA_COMPAT_MODULE   1
-#   define PLUA_VERSION        51
+#   define PLUA_VERSION        52
 #   define DEFAULT_ENCTYPE     "application/x-www-form-urlencoded"
 #   define MULTIPART_ENCTYPE   "multipart/form-data"
 #   define MAX_VARS            500  /* Maximum number of HTTP GET/POST variables */
@@ -303,7 +303,7 @@ static void pthread_mutex_unlock(HANDLE mutex) {
  =======================================================================================================================
  */
 static void pthread_mutex_init(HANDLE *mutex, int blargh) {
-    *mutex = CreateMutex(NULL, /* default security attributes */ FALSE, /* initially not owned */ NULL);    /* unnamed mutex */
+    *mutex = CreateMutex(NULL, FALSE, NULL);
     return;
 }
 #   endif
