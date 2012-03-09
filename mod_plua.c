@@ -232,8 +232,8 @@ static pLuaClock pLua_getClock(char useAPR)
     if (!useAPR) {
         QueryPerformanceCounter(&cycles);
         QueryPerformanceFrequency(&frequency);
-        cstr.seconds = cycles.QuadPart / frequency.QuadPart;
-        cstr.nanoseconds = cycles.QuadPart % (cycles.QuadPart * (1000000000 / frequency.QuadPart));
+        cstr.seconds = (uint32_t) (cycles.QuadPart / frequency.QuadPart);
+        cstr.nanoseconds = (uint32_t) cycles.QuadPart % (cycles.QuadPart * (1000000000 / frequency.QuadPart));
     }
     else {
 
@@ -241,7 +241,7 @@ static pLuaClock pLua_getClock(char useAPR)
         apr_time_t  now = apr_time_now();
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-        cstr.seconds = now / 1000000;
+        cstr.seconds = (uint32_t) now / 1000000;
         cstr.nanoseconds = (now % 1000000) * 1000;
     }
 
@@ -1340,7 +1340,7 @@ static int lua_sleep(lua_State *L)
     n = lua_tonumber(L, 1);
     if (n < 0) n = 1;
     n = ((LUA_TIMEOUT > 0) && (LUA_TIMEOUT < n)) ? LUA_TIMEOUT : n;
-    apr_sleep(n * 1000000);
+    apr_sleep((apr_interval_time_t) n * 1000000);
     return (0);
 }
 
@@ -1369,7 +1369,7 @@ static int lua_echo(lua_State *L)
                 if (PLUA_LSTRING) {
                     el = lua_tolstring(L, y, &x);
                     if (el && x > 0) {
-                        ap_rwrite(el, x, thread->r);
+                        ap_rwrite(el, (int) x, thread->r);
                     }
                 }
                 else {
@@ -1420,7 +1420,7 @@ static int lua_explode(lua_State *L)
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     const char  *string;
     const char  *delimiter;
-    char        *current = 0;
+    const char  *current = 0;
     const char  *previous = 0;
     size_t      tmpsize, size, dsize;
     lua_thread  *thread;
@@ -1647,7 +1647,7 @@ static int lua_getEnv(lua_State *L)
 
         /* Apache HTTP specific data */
         lua_pushstring(thread->state, "Request-Time");
-        lua_pushinteger(thread->state, thread->r->request_time);
+        lua_pushinteger(thread->state, (lua_Integer) thread->r->request_time);
         lua_rawset(L, -3);
         lua_pushstring(thread->state, "Clock-Offset");
         lua_pushinteger(thread->state, pLua_clockOffset.seconds);
@@ -1730,16 +1730,16 @@ static int lua_fileinfo(lua_State *L)
         lua_pushinteger(L, fileinfo.st_size);
         lua_rawset(L, -3);
         lua_pushliteral(L, "created");
-        lua_pushinteger(L, fileinfo.st_ctime);
+        lua_pushinteger(L, (lua_Integer) fileinfo.st_ctime);
         lua_rawset(L, -3);
         lua_pushliteral(L, "modified");
-        lua_pushinteger(L, fileinfo.st_mtime);
+        lua_pushinteger(L, (lua_Integer) fileinfo.st_mtime);
         lua_rawset(L, -3);
         lua_pushliteral(L, "accessed");
-        lua_pushinteger(L, fileinfo.st_atime);
+        lua_pushinteger(L, (lua_Integer) fileinfo.st_atime);
         lua_rawset(L, -3);
         lua_pushliteral(L, "mode");
-        lua_pushinteger(L, fileinfo.st_mode);
+        lua_pushinteger(L, (lua_Integer) fileinfo.st_mode);
         lua_rawset(L, -3);
     }
 
@@ -1828,8 +1828,8 @@ static int lua_getRequestBody(lua_State *L)
                 return (0);
             }
 
-            lua_pushlstring(L, data, size);
-            lua_pushinteger(L, size);
+            lua_pushlstring(L, data, (size_t) size);
+            lua_pushinteger(L, (lua_Integer) size);
             return (2);
         }
         else {
@@ -1849,7 +1849,7 @@ static int lua_getRequestBody(lua_State *L)
                     return (0);
                 }
 
-                lua_pushinteger(L, size);
+                lua_pushinteger(L, (lua_Integer) size);
                 return (1);
             }
             else
@@ -1899,7 +1899,7 @@ static int lua_compileTime(lua_State *L)
     if (thread) {
         lua_newtable(L);
         lua_pushliteral(L, "seconds");
-        lua_pushinteger(L, thread->t.tv_sec);
+        lua_pushinteger(L, (lua_Integer) thread->t.tv_sec);
         lua_rawset(L, -3);
         lua_pushliteral(L, "nanoseconds");
         lua_pushinteger(L, thread->t.tv_nsec);
@@ -1929,12 +1929,12 @@ static int util_read(request_rec *r, const char **rbuf, apr_off_t *size)
     if (ap_should_client_block(r)) {
 
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-        char        argsbuffer[HUGE_STRING_LEN];
-        int         rsize, len_read, rpos = 0;
-        apr_off_t   length = r->remaining;
+        char         argsbuffer[HUGE_STRING_LEN];
+        apr_off_t    rsize, len_read, rpos = 0;
+        apr_off_t length = r->remaining;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-        *rbuf = (const char *) apr_pcalloc(r->pool, length + 1);
+        *rbuf = (const char *) apr_pcalloc(r->pool, (apr_size_t) (length + 1));
         *size = length;
         while ((len_read = ap_get_client_block(r, argsbuffer, sizeof(argsbuffer))) > 0) {
             if ((rpos + len_read) > length) {
@@ -1944,7 +1944,7 @@ static int util_read(request_rec *r, const char **rbuf, apr_off_t *size)
                 rsize = len_read;
             }
 
-            memcpy((char *) *rbuf + rpos, argsbuffer, rsize);
+            memcpy((char *) *rbuf + rpos, argsbuffer, (size_t) rsize);
             rpos += rsize;
         }
     }
@@ -1972,20 +1972,21 @@ static int util_write(request_rec *r, apr_file_t *file, apr_off_t *size)
 
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         char        argsbuffer[HUGE_STRING_LEN];
-        apr_size_t  rsize, written, len_read, rpos = 0;
+        apr_off_t  rsize, len_read, rpos = 0;
         apr_off_t   length = r->remaining;
+		apr_size_t  written;
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
         *size = length;
         while ((len_read = ap_get_client_block(r, argsbuffer, sizeof(argsbuffer))) > 0) {
             if ((rpos + len_read) > length) {
-                rsize = length - rpos;
+                rsize = (apr_size_t) length - rpos;
             }
             else {
                 rsize = len_read;
             }
 
-            rc = apr_file_write_full(file, argsbuffer, rsize, &written);
+            rc = apr_file_write_full(file, argsbuffer, (apr_size_t) rsize, &written);
             if (written != rsize) return -1;
             rpos += rsize;
         }
@@ -2546,7 +2547,7 @@ lua_thread *lua_acquire_state(request_rec *r, const char *hostname)
         QueryPerformanceCounter(&cycles);
         QueryPerformanceFrequency(&frequency);
         L->t.tv_sec = (cycles.QuadPart / frequency.QuadPart) + pLua_clockOffset.seconds;
-        L->t.tv_nsec = (cycles.QuadPart % frequency.QuadPart) * (1000000000 / frequency.QuadPart) + pLua_clockOffset.nanoseconds;
+        L->t.tv_nsec = (long) ( (cycles.QuadPart % frequency.QuadPart) * (1000000000 / frequency.QuadPart) + pLua_clockOffset.nanoseconds);
 #else
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
         apr_time_t  now = r->request_time;
@@ -2830,7 +2831,7 @@ char *pLua_sha256(const char *digest, lua_thread *thread)
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     sha256_starts(&ctx);
-    sha256_update(&ctx, (uint8_t *) digest, strlen(digest));
+    sha256_update(&ctx, (uint8_t *) digest, (uint32_t) strlen(digest));
     sha256_finish(&ctx, shasum);
     for (x = 0; x < 32; x += 4) {
         Rshasum[x] = shasum[x + 3];
@@ -2856,7 +2857,7 @@ static char value(char c)
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     if (p) {
-        return (p - b64_table);
+        return (int) (p - b64_table);
     }
     else {
         return (0);
@@ -2907,7 +2908,7 @@ int pLua_unbase64(unsigned char *dest, const unsigned char *src, size_t srclen)
         while (*src && (*src == 13 || *src == 10)) src++;
     } while (srclen -= 4);
     *p = 0;
-    return (p - dest);
+    return (int) (p - dest);
 }
 
 /*
@@ -2963,7 +2964,7 @@ int base64_encode_block
             if (plainchar == plaintextend) {
                 state_in->result = result;
                 state_in->step = 1;
-                return (codechar - code_out);
+                return (int) (codechar - code_out);
             }
 
             fragment = *plainchar++;
@@ -2975,7 +2976,7 @@ int base64_encode_block
             if (plainchar == plaintextend) {
                 state_in->result = result;
                 state_in->step = 2;
-                return (codechar - code_out);
+                return (int) (codechar - code_out);
             }
 
             fragment = *plainchar++;
@@ -2987,7 +2988,7 @@ int base64_encode_block
             if (plainchar == plaintextend) {
                 state_in->result = result;
                 state_in->step = 3;
-                return (codechar - code_out);
+                return (int) (codechar - code_out);
             }
 
             fragment = *plainchar++;
@@ -3004,7 +3005,7 @@ int base64_encode_block
     }
 
     /* control should not reach here */
-    return (codechar - code_out);
+    return (int) (codechar - code_out);
 }
 
 /*
@@ -3035,7 +3036,7 @@ int base64_encode_blockend(char *code_out, base64_encodestate *state_in)
     }
 
     *codechar++ = '\n';
-    return (codechar - code_out);
+    return (int) (codechar - code_out);
 }
 
 /*

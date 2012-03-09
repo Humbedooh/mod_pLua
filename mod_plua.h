@@ -130,7 +130,7 @@ typedef struct
 {
     const char  *key;
     int         size;
-    int         sizes[MAX_MULTIPLES];
+    size_t      sizes[MAX_MULTIPLES];
     const char  *values[MAX_MULTIPLES];
 } formdata;
 static lua_domain       *pLua_domains = 0;
