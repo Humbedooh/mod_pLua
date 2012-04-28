@@ -2005,7 +2005,7 @@ static int parse_urlencoded(lua_thread *thread, const char *data)
     int         z, i;
     size_t      x, y;
     const char  *key, *val;
-    formdata    *form = apr_pcalloc(thread->r->pool,
+    formdata    *form = (formdata*) apr_pcalloc(thread->r->pool,
                                     sizeof(formdata) * (MAX_VARS + 1));
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
