@@ -1703,6 +1703,91 @@ static int lua_getEnv(lua_State *L)
     return (0);
 }
 
+
+/*
+ =======================================================================================================================
+    lua_getCookie(lua_State *L): getCookie(cookiename): Returns the value of the cookie 'cookiename' if any
+ =======================================================================================================================
+ */
+static int lua_getCookie(lua_State *L)
+{
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    lua_thread                  *thread;
+    const apr_array_header_t    *fields;
+    int                         i;
+    const char *key, *val;
+    const char* cookieName;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+    thread = pLua_get_thread(L);
+    if (thread) {
+        
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        apr_table_entry_t   *e = 0;
+        
+        luaL_checktype(L, 1, LUA_TSTRING);
+        cookieName = lua_tostring(L, 1);
+        lua_settop(L, 0);
+
+        fields = apr_table_elts(thread->r->headers_in);
+        e = (apr_table_entry_t *) fields->elts;
+        for (i = 0; i < fields->nelts; i++) {
+            if (!strcasecmp(e[i].key, "cookie")) {
+                while (*e[i].val && (val = ap_getword(thread->r->pool, (const char**) &e[i].val, ';'))) {
+                    key = ap_getword(thread->r->pool, &val, '=');
+                    while (key[0] && (key[0] == ' ' || key[0] == '\t' || key[0] == '\r' || key[0] == '\n')) key++;
+                    if (!strcasecmp(key, cookieName)) {
+                        lua_pushstring(thread->state, val);
+                        return 1;
+                    }
+                }
+            }
+        }
+
+        return (0);
+    }
+    return (0);
+}
+
+
+
+/*
+ =======================================================================================================================
+    lua_setCookie(lua_State *L): setCookie(cookiename, value, expires, path): Sets the value of the cookie 'cookiename'
+ =======================================================================================================================
+ */
+static int lua_setCookie(lua_State *L)
+{
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+    lua_thread                  *thread;
+    const apr_array_header_t    *fields;
+    int                         expires;
+    const char *key, *val, *path;
+    const char* cookie;
+    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+    thread = pLua_get_thread(L);
+    if (thread) {
+        
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        luaL_checktype(L, 1, LUA_TSTRING);
+        key = lua_tostring(L, 1);
+        
+        luaL_checktype(L, 2, LUA_TSTRING);
+        val = lua_tostring(L, 2);
+        
+        expires = luaL_optint(L, 3, 0);
+        
+        path = luaL_optstring(L, 4, "/");
+        
+        if (expires > 0) cookie = apr_psprintf(thread->r->pool, "%s=%s; Max-Age=%u;Path=%s;", key, val, expires, path);
+        else cookie = apr_psprintf(thread->r->pool, "%s=%s; Path=%s;", key, val, path);
+        apr_table_set(thread->r->headers_out, "Set-Cookie", cookie);
+
+    }
+    return (0);
+}
+
 /*
  =======================================================================================================================
     lua_fileinfo(lua_State *L): file.stat(filename): Returns a table with information on the given file.
@@ -3349,3 +3434,4 @@ module AP_MODULE_DECLARE_DATA   plua_module =
     my_directives,
     register_hooks
 };
+

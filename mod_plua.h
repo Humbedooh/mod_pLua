@@ -36,6 +36,7 @@
 #   include <time.h>
 #   include <apr_dbd.h>
 #   include <apr_hash.h>
+#   include <apr_strings.h>
 #   include <httpd.h>
 #   include <http_protocol.h>
 #   include <http_config.h>
@@ -363,6 +364,8 @@ static int          parse_urlencoded(lua_thread *thread, const char *data);
 static int          parse_multipart(lua_thread *thread, const char *data, const char *multipart, apr_off_t size);
 static int          lua_parse_post(lua_State *L);
 static int          lua_parse_get(lua_State *L);
+static int          lua_getCookie(lua_State *L);
+static int          lua_setCookie(lua_State *L);
 static int          lua_includeFile(lua_State *L);
 static void         register_lua_functions(lua_State *L);
 void                pLua_create_state(lua_thread *thread);
@@ -454,6 +457,8 @@ static const luaL_reg           Global_methods[] =
     { "dbopen", lua_dbopen },
     { "showErrors", lua_setErrorLevel },
     { "getRequestBody", lua_getRequestBody },
+    { "getCookie", lua_getCookie },
+    { "setCookie", lua_setCookie },
     { 0, 0 }
 };
 static const luaL_reg           String_methods[] = { 
