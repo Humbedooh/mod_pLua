@@ -1,11 +1,9 @@
-mod_pLua
-========
+# mod_pLua #
 
 mod_pLua is an Apache HTTP Server 2.x module for developing web applications with Lua.
 With mod_pLua, you can use Lua for scripting in two distinct ways:
 
-Embedded Lua scripting:
------------------------
+## Embedded Lua scripting:
 
     <html>
         <body>
@@ -22,8 +20,7 @@ Embedded Lua scripting:
     </html>
 
 
-Plain Lua scripting:
---------------------
+## Plain Lua scripting:
 
 ```lua
 setContentType("text/html")
@@ -34,17 +31,48 @@ print("Hello, ", user)
 
 (This example can be achieved using the [pLuaRaw](https://github.com/Humbedooh/mod_pLua/blob/master/docs/setup.md#pluaraw-ext) directive)
 
-
-Additional features
--------------------
+## Additional features
 
 mod_pLua [precompiles all scripts and caches the compiled binary code](https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md) so that each new call to the same file will be lightning fast, allowing you to serve hundreds of thousands of requests per minute on any modern server.
 
 Mod_pLua supports both the traditional Lua interpreter as well as LuaJIT for both Windows and UNIX platforms.
 If your web server supports it, mod_pLua also utilizes APR_DBD and mod_dbd to handle databases through the [dbopen()]((https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md)) Lua function. And last, but not least, mod_pLua is of course thread-safe.
 
-See also
---------
+## Download mod_pLua
+
+Below you can find the various package solutions available for download.
+
+The currently available options are:
+
+* **[Windows binaries](https://sourceforge.net/projects/modplua/files/Windows%20binaries/):** Compiled binaries for Windows 32/64 bit.
+* **[Linux binaries](https://sourceforge.net/projects/modplua/files/Linux%20binaries):** Compiled Linux binaries for i686 and x86_64.
+* **[FreeBSD binaries](https://sourceforge.net/projects/modplua/files/FreeBSD%20binaries):** Compiled FreeBSD 9.0 binaries for x86_64.
+* **[Source code](https://sourceforge.net/projects/modplua/files/Source%20Code):** zipped source codes with compiler script for UNIX systems.
+
+### Which version to choose
+####UNIX users
+If you are running Linux or FreeBSD, you can download the compiled binaries - otherwise, download the source and run ./configure followed by make.
+
+####Windows
+If you are running Windows, you can download a compiled package for either Lua or LuaJIT (recommended).
+You will need to copy the DLL files in your package into the Apache2 'bin' folder.
+
+####Other architectures
+If you have access to other architectures than the ones listed, and you have sufficient knowledge to compile the binaries, do let me know, and I'll upload your copies of the binaries!
+
+###Requirements
+####Lua versions
+The Lua versions require Lua 5.1 or 5.2 installed on your machine, depending on which package you download.
+
+####LuaJIT versions
+The LuaJIT versions for Windows come bundled with the LuaJIT library (lua51.dll) for quick installation.  
+For UNIX, you will have to install LuaJIT yourself using your local package manager.
+
+####Installing
+To install mod_plua, simply copy the compiled .so file to your apache module folder, typically /usr/lib/apache2/modules.
+For configuration, please see the **[Setting up mod_plua](https://github.com/Humbedooh/mod_pLua/blob/master/docs/setup.md)** wiki page.
+
+## See also
 
 You may want to look at these pages before you start:
 
