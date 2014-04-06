@@ -50,7 +50,7 @@ file.send(filename) -- Use sendfile to maximize performance
 
 ##Including scripts and files
 
-```
+```lua
 <?
 include("myheader.plua")
 echo("Contents goes here")
@@ -60,7 +60,7 @@ include("footer.html") -- You can include HTML files as well
 
 ##Redirecting to another URL
 
-```
+```lua
 <?
 header("Location", "/gone")
 setReturnCode(302) --Set httpd to return 302 Moved
@@ -70,7 +70,7 @@ print("We have moved!")
 
 ##Basic WWW-authorization
 
-```
+```lua
 <?
 header("WWW-Authenticate", 'Basic realm="Super secret zone"')
 local env = getEnv() or {}
