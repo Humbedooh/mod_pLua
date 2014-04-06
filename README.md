@@ -87,3 +87,9 @@ You may want to look at these pages before you start:
 * [New functions in mod_pLua](https://github.com/Humbedooh/mod_pLua/blob/master/docs/functions.md)
 * [Database connectivity](https://github.com/Humbedooh/mod_pLua/blob/master/docs/database.md)
 * [How mod_pLua works](https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md)
+
+* * *
+
+Copyright (c) 2012 [Humbedooh](https://github.com/Humbedooh)
+
+License: [Academic Free License](http://opensource.org/licenses/AFL-3.0)
