@@ -47,7 +47,6 @@ The currently available options are:
 * **[Windows binaries](https://sourceforge.net/projects/modplua/files/Windows%20binaries/):** Compiled binaries for Windows 32/64 bit.
 * **[Linux binaries](https://sourceforge.net/projects/modplua/files/Linux%20binaries):** Compiled Linux binaries for i686 and x86_64.
 * **[FreeBSD binaries](https://sourceforge.net/projects/modplua/files/FreeBSD%20binaries):** Compiled FreeBSD 9.0 binaries for x86_64.
-* **[Source code](https://sourceforge.net/projects/modplua/files/Source%20Code):** zipped source codes with compiler script for UNIX systems.
 
 ### Which version to choose
 ####UNIX users
