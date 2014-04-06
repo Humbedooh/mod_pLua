@@ -10,9 +10,9 @@ Embedded Lua scripting:
     <html>
         <body>
             <?
-              get = parseGet(); --# Parse any GET data passed on to us.
-              name = get['name'] or "unknown person";
-              x = (x or 0) + 1; --# Increment a persistent, global variable x.
+              get = parseGet() -- Parse any GET data passed on to us.
+              name = get['name'] or "unknown person"
+              x = (x or 0) + 1 -- Increment a persistent, global variable x.
             ?>
             <h1>Hello, <?=name?>!</h1>
             <?if (x > 3) then?>
@@ -25,18 +25,31 @@ Embedded Lua scripting:
 Plain Lua scripting:
 --------------------
 
-    setContentType("text/html");
-    local vars = parseGet();
-    local user = vars["name"] or "unknown person";
-    print("Hello, ", user);
+```lua
+setContentType("text/html");
+local vars = parseGet();
+local user = vars["name"] or "unknown person";
+print("Hello, ", user);
+```
 
-(This example can be achieved using the pLuaRaw directive)
+(This example can be achieved using the [pLuaRaw](https://github.com/Humbedooh/mod_pLua/blob/master/docs/setup.md) directive)
 
 
 Additional features
 -------------------
 
-mod_pLua precompiles all scripts and caches the compiled binary code so that each new call to the same file will be lightning fast, allowing you to serve hundreds of thousands of requests per minute on any modern server.
+mod_pLua [precompiles all scripts and caches the compiled binary code](https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md) so that each new call to the same file will be lightning fast, allowing you to serve hundreds of thousands of requests per minute on any modern server.
 
 Mod_pLua supports both the traditional Lua interpreter as well as LuaJIT for both Windows and UNIX platforms.
-If your web server supports it, mod_pLua also utilizes APR_DBD and mod_dbd to handle databases through the dbopen() Lua function. And last, but not least, mod_pLua is of course thread-safe.
+If your web server supports it, mod_pLua also utilizes APR_DBD and mod_dbd to handle databases through the [dbopen()]((https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md)) Lua function. And last, but not least, mod_pLua is of course thread-safe.
+
+See also
+--------
+
+You may want to look at these pages before you start:
+
+* [mod_pLua examples](https://github.com/Humbedooh/mod_pLua/blob/master/docs/examples.md)
+* [Setting up mod_pLua](https://github.com/Humbedooh/mod_pLua/blob/master/docs/setup.md)
+* [New functions in mod_pLua](https://github.com/Humbedooh/mod_pLua/blob/master/docs/functions.md)
+* [Database connectivity](https://github.com/Humbedooh/mod_pLua/blob/master/docs/database.md)
+* [How mod_pLua works](https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md)
