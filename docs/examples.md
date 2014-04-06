@@ -16,7 +16,7 @@ end
 
 ##Reading form data
 
-```
+```lua
 <form method="post">
 <input type="text" name="name"/>
 <input type="hidden" name="action" value="post stuff">
@@ -32,13 +32,12 @@ end
 
 ##Printing a text-only page
 
-```
+```lua
 <?
 setContentType("text/plain")
 ?>
 Plain text goes here, and any <html> tags should not be parsed.
 ```
-
 
 ##Sending a file directly to the browser
 
