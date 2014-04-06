@@ -2,7 +2,7 @@
 
 mod_pLua is an Apache HTTP Server 2.x module for developing web applications with Lua.
 
-It has a [different approach](https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md#mod_plua-or-mod_lua) than mod_lua and works similar to mod_php.
+It has a different approach than mod_lua, with some [notable differences in design](https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md#mod_plua-or-mod_lua), and has been designed for script or hypertext oriented development (similar to PHP, ASP and JSP).
 
 With mod_pLua, you can use Lua for scripting in two distinct ways:
 
