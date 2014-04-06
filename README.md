@@ -1,4 +1,8 @@
-# mod_pLua #
+<h1>
+<img src="https://sourceforge.net/p/modplua/wiki/mod_pLua%20logo/attachment/plua_highres.png" height="113" title="mod_pLua"/>
+</h1>
+
+### [Installation](#download-mod_plua)  &nbsp; [How It Works](https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md) &nbsp; [Function Reference](https://github.com/Humbedooh/mod_pLua/blob/master/docs/functions.md) &nbsp; [Examples](https://github.com/Humbedooh/mod_pLua/blob/master/docs/examples.md)
 
 mod_pLua is an Apache HTTP Server 2.x module for developing web applications with Lua.
 
