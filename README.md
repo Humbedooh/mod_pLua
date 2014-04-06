@@ -26,13 +26,13 @@ Plain Lua scripting:
 --------------------
 
 ```lua
-setContentType("text/html");
-local vars = parseGet();
-local user = vars["name"] or "unknown person";
-print("Hello, ", user);
+setContentType("text/html")
+local vars = parseGet()
+local user = vars["name"] or "unknown person"
+print("Hello, ", user)
 ```
 
-(This example can be achieved using the [pLuaRaw](https://github.com/Humbedooh/mod_pLua/blob/master/docs/setup.md) directive)
+(This example can be achieved using the [pLuaRaw](https://github.com/Humbedooh/mod_pLua/blob/master/docs/setup.md#pluaraw-ext) directive)
 
 
 Additional features
