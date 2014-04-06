@@ -35,7 +35,7 @@ print("Hello, ", user)
 
 mod_pLua [precompiles all scripts and caches the compiled binary code](https://github.com/Humbedooh/mod_pLua/blob/master/docs/howitworks.md) so that each new call to the same file will be lightning fast, allowing you to serve hundreds of thousands of requests per minute on any modern server.
 
-Mod_pLua supports both the traditional Lua interpreter as well as LuaJIT for both Windows and UNIX platforms.
+mod_pLua supports both the traditional Lua interpreter as well as LuaJIT for both Windows and UNIX platforms.
 If your web server supports it, mod_pLua also utilizes APR_DBD and mod_dbd to handle databases through the [dbopen()](https://github.com/Humbedooh/mod_pLua/blob/master/docs/functions.md#dbopendbtype-parameters) Lua function. And last, but not least, mod_pLua is of course thread-safe.
 
 ## Download mod_pLua
