@@ -69,7 +69,7 @@ For UNIX, you will have to install LuaJIT yourself using your local package mana
 
 ####Installing
 To install mod_plua, simply copy the compiled .so file to your apache module folder, typically /usr/lib/apache2/modules.
-For configuration, please see the **[Setting up mod_plua](https://github.com/Humbedooh/mod_pLua/blob/master/docs/setup.md)** wiki page.
+For configuration, please see **[Setting up mod_plua](https://github.com/Humbedooh/mod_pLua/blob/master/docs/setup.md)**.
 
 ## See also
 
