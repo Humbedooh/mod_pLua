@@ -2,16 +2,16 @@
 mod_pLua provides methods to connect to the most popular databases through the [APR_DBD](http://people.apache.org/~niq/dbd.html) API and [mod_dbd](http://httpd.apache.org/docs/current/mod/mod_dbd.html).  
 The following database handlers are available, if supported by your Apache HTTP Server:  
 
-* MySQL 5.x (`mysql`)
-* SQLite3 (`sqlite3`)
-* PostgreSQL (`pgsql`)
-* Oracle (`oracle`)
-* FreeTDS (`freetds`)
-* ODBC Connector (`odbc`)
-* mod_dbd Connector (`mod_dbd`)   
+* MySQL 5.x - `mysql`
+* SQLite3 - `sqlite3`
+* PostgreSQL - `pgsql`
+* Oracle - `oracle`
+* FreeTDS - `freetds`
+* ODBC Connector - `odbc`
+* mod_dbd Connector - `mod_dbd`
 
 ## Connecting to a database
-All connections are initialized through the [`dbopen`](https://sourceforge.net/p/modplua/wiki/New%20functions%20in%20pLua/) function which takes two arguments:
+All connections are initialized through the [`dbopen`](https://github.com/Humbedooh/mod_pLua/blob/master/docs/functions.md#dbopendbtype-parameters) function which takes two arguments:
 
 * The database driver/connector to use
 * Database specific parameters
