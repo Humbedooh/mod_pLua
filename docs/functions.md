@@ -1,5 +1,31 @@
 #New functions in mod_pLua
 
+##Table of Contents
+
+- [clock](#clock) ( )
+- [dbopen](#dbopendbtype-parameters) ( dbtype, parameters )
+- [echo](#echo) ( ... )
+- [exit](#exit) ( )
+- [file.exists](#fileexistsfilename) ( filename )
+- [file.rename](#filerenamefilename-newfilename) ( filename, newfilename )
+- [file.unlink](#fileunlinkfilename) ( filename )
+- [file.send](#filesendfilename) ( filename )
+- [file.stat](#filestatfilename) ( filename )
+- [getEnv](#getenv) ( )
+- [getRequestBody](#getrequestbodyfilename) ( filename )
+- [header](#headerkey-value) ( key, value )
+- [httpError](#httperrorerrorcode) ( errorCode )
+- [include](#filename) ( filename )
+- [parseGet](#parseget) ( )
+- [parsePost](#parsepost) ( )
+- [setContentType](#setcontenttypevalue) ( value )
+- [setReturnCode](#setreturncoden) ( N )
+- [string.encode64](#stringencode64text) ( text )
+- [string.decode64](#stringdecode64text) ( text )
+- [string.explode](#stringexplodetext-delimiter) ( text, delimiter )
+- [string.md5](#stringmd5text) ( text )
+- [string.SHA256](#stringsha256text) ( text )
+
 ## clock():
 
 Returns a table with the seconds and nanoseconds at the time it was called.
